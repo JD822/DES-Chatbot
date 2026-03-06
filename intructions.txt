@@ -1,0 +1,7 @@
+To run application:
+
+Ollama:
+ollama run llama3.2
+
+Backend:
+python3 main.py (While in backend directory)
