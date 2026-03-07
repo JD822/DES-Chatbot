@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import ollama
 import os
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -14,7 +15,7 @@ API_KEY_CREDITS = {os.getenv("API_KEY"): 100}
 app = FastAPI()
 
 origins = [
-    "http://localhost:3000",
+    "http://localhost:5173",
     ]
 
 app.add_middleware(
@@ -32,10 +33,20 @@ def verify_api_key(x_api_key: str = Header(None)):
     
     return x_api_key
 
+class Prompt(BaseModel):
+    prompt: str
+
 @app.post("/generate")
-def generate(prompt: str, x_api_key: str = Depends(verify_api_key)):
+def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
+    print("Prompt received:", data.prompt)
+
     API_KEY_CREDITS[x_api_key] -= 1
-    response = ollama.chat(model="llama3.2", messages=[{"role": "user", "content": prompt}])
+
+    response = ollama.chat(
+        model="llama3.2",
+        messages=[{"role": "user", "content": data.prompt}]
+    )
+
     return {"response": response["message"]["content"]}
 
 if __name__ == "__main__":
