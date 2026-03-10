@@ -3,5 +3,8 @@ To run application:
 Ollama:
 ollama run llama3.2
 
-Backend:
+Backend (http://0.0.0.0:8000):
 python3 main.py (While in backend directory)
+
+Frontend (http://localhost:5173/):
+npm run dev (While in frontend directory)
