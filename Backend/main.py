@@ -1,4 +1,5 @@
 import uvicorn
+import re
 from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 import ollama
@@ -38,20 +39,71 @@ class Prompt(BaseModel):
     session_id: str
     prompt: str
 
+awaiting_personalisation_response = True
+personalise_response = False
+user_age = "Age not provided"
+vision_status = "Vision status not provided"
+literacy_level = "Literacy level not provided"
+
 @app.post("/generate")
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     print("Prompt received:", data.prompt)
+
+    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level
 
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
 
     chat_history[data.session_id].append(data.prompt)
 
+    if awaiting_personalisation_response:
+        awaiting_personalisation_response = False
+        if data.prompt.lower() == "yes":
+            personalise_response = True
+            return {"response": "Great! I will now ask a couple of questions to tailor my responses to you, could you please tell me your age?"}
+        else:
+            personalise_response = False
+            return {"response": "No problem! I will provide general information. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me."}
+
+    if personalise_response:
+        if user_age == "Age not provided":
+            print("User age not provided. Prompting for age.")
+            user_age = data.prompt if data.prompt.isdigit() else "Age not provided"
+            print(user_age)
+            match = re.search(r'\d+', data.prompt)
+            
+            if match:
+                age_val = int(match.group())
+                
+                if 12 <= age_val <= 100:
+                    user_age = age_val
+                    return {"response": f'''Got it, you're {user_age}. Do you have any of the following visual issues? 
+                            - None
+                            - Colour Blindness
+                            - Low Vision
+                            - Light Sensitivity
+                            - Screen Reader User'''}
+                else:
+                    return {"response": "Please provide an age between 12 and 100"}
+            else:
+                return {"response": "Please provide a number, that way I can help you better."}
+
+        if vision_status == "Vision status not provided":
+            vision_status = data.prompt.lower()
+            if vision_status not in ["none", "colour blindness", "low vision", "light sensitivity", "screen reader user"]:
+                return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific vision statuses currently."}
+            return {"response": '''Thank you for sharing that. Lastly, how would you describe your preferred style of communication?
+                    - Simple
+                    - Detailed'''}
+
+        if literacy_level == "Literacy level not provided":
+            literacy_level = data.prompt.lower()
+            if literacy_level not in ["simple", "detailed"]:
+                return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific styles currently."}
+            return {"response": "Thanks for sharing that. I will adjust my responses to be clear and easy to understand. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me"}
+
     API_KEY_CREDITS[x_api_key] -= 1
 
-    user_age = 72
-    vision_status = "Blurry vision in left eye"
-    literacy_level = "Prefers simple terms"
 
     persona_prefix = f"""
     USER CONTEXT:
@@ -82,7 +134,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
     Reflective Listening:
     - Briefly repeat or confirm the result the user shared before explaining it.
-    Example: "From what you've said, your letter shows **R1**."
 
     STRUCTURED RESPONSE STYLE
     1. Short acknowledgement (if appropriate)
@@ -93,15 +144,15 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     Use 2-4 short bullet points when explaining results.
 
     THE GOLDEN RULE - NO ASSUMPTIONS
-    Never assume a screening result.
+    NEVER assume a screening result.
 
     If the user has not provided their screening result code (R0-R3 or M0-M1), politely ask:
 
-    "What result codes are written on your letter? For example R1, M0."
+    "What result is written on your letter?"
 
-    Do not explain any codes until the user provides them.
+    DO NOT explain any codes until the user provides them.
 
-    EXPLAIN ONLY WHAT IS PROVIDED
+    EXPLAIN ONLY WHAT IS PROVIDED AND DO NOT MENTION ANY OTHER CODES
     Only explain the exact code(s) the user mentions.
     Do not list or compare other result codes unless the user asks.
 
@@ -175,13 +226,12 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             {"role": "user", "content": data.prompt}
         ],
         options={
-        "temperature": 0.3,
+        "temperature": 0.2,
         "num_predict": 250, 
         "top_p": 0.9   
     }
     )
 
-    #chat_history[data.session_id].append(response["message"]["content"])
 
     chat_history[data.session_id].append({
     "role": "user", 

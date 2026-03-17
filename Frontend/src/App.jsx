@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
+import { askOllama } from "./Components/OllamaApi";
+import "./App.css";
 
 function App() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
   const [sessionId, setSessionId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content:
+        "Hi there! I'm your DES Support Bot. How can I assist you today? If you want to get the best experience, just say 'Yes' to personalise my responses to you.",
+    },
+  ]);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -19,75 +27,55 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const syncWithBackend = async () => {
+      await askOllama("Start_Onboarding", id);
+      setSessionId(id);
+    };
+
+    syncWithBackend();
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const askOllama = async () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
-    // 1. Create the user message object
     const userMsg = { role: "user", content: input };
 
-    // 2. IMPORTANT: Add user message to the UI immediately
-    // Use the (prev) => [...prev, new] syntax to keep old messages
-    setMessages((prevHistory) => [...prevHistory, userMsg]);
+    setMessages((prevHistory) => [
+      ...prevHistory,
+      userMsg,
+      { role: "assistant", content: "Thinking..." },
+    ]);
 
     const currentInput = input;
     setInput("");
-    const res = await fetch("http://localhost:8000/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": "passkey",
-      },
-      body: JSON.stringify({ prompt: input, session_id: sessionId }),
-    });
 
-    const data = await res.json();
-    const aiMsg = { role: "assistant", content: data.response };
-    setMessages((prev) => [...prev, aiMsg]);
+    try {
+      const data = await askOllama(currentInput, sessionId);
+      setMessages((prevHistory) => {
+        const newMessages = [...prevHistory];
+        newMessages[newMessages.length - 1] = {
+          role: "assistant",
+          content: data.response,
+        };
+        return newMessages;
+      });
+    } catch (error) {
+      console.error("Failed to send message", error);
+    }
   };
 
-  // const messagesEndRef = useRef(null);
-
-  // const scrollToBottom = () => {
-  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  // };
-
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "auto" }}>
-      <h2>Eye Screening Chat</h2>
+    <div className="container">
+      <h2>DES Support Bot</h2>
 
-      {/* 4. Display the messages */}
-      <div
-        style={{
-          height: "400px",
-          overflowY: "auto",
-          border: "1px solid #ccc",
-          padding: "10px",
-          marginBottom: "10px",
-        }}
-      >
+      <div className="chat-window">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              textAlign: msg.role === "user" ? "right" : "left",
-              margin: "10px 0",
-            }}
-          >
-            <span
-              style={{
-                background: msg.role === "user" ? "#007bff" : "#e9e9eb",
-                color: msg.role === "user" ? "white" : "black",
-                padding: "8px 12px",
-                borderRadius: "10px",
-                display: "inline-block",
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {msg.content}
-            </span>
+          <div key={i} className={`message-wrapper ${msg.role}`}>
+            <span className={`bubble ${msg.role}`}>{msg.content}</span>
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -96,10 +84,10 @@ function App() {
       <input
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && askOllama()}
+        onKeyDown={(e) => e.key === "Enter" && handleSend()}
         placeholder="Type here..."
       />
-      <button onClick={askOllama}>Send</button>
+      <button onClick={handleSend}>Send</button>
     </div>
   );
 }
