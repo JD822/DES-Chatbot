@@ -1,21 +1,46 @@
+body,
+#root {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #dbdbdb;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  align-self: flex-start;
+}
+
 .container {
   padding: 20px;
   max-width: 600px;
   margin: auto;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-window {
   height: 600px;
   overflow-y: auto;
-  border: 1px solid #ccc;
+  border: 2px solid #ffffff;
   padding: 10px;
   margin-bottom: 10px;
   display: flex;
   flex-direction: column;
+  border-radius: 10px;
+  background-color: #ffffff;
 }
 
 .message-wrapper {
   margin: 10px 0;
+  font-size: var(--bubble-text-size);
+  transition: font-size 0.2s ease;
 }
 
 .message-wrapper.user {
@@ -42,4 +67,34 @@
 .bubble.assistant {
   background: #e9e9eb;
   color: black;
+}
+
+.text-input {
+  width: 95%;
+  padding: 10px;
+  font-size: 16px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  color: #000;
+}
+
+.chat-input:focus {
+  border-color: #0984e3;
+  color: #000000;
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.chat-pop {
+  animation: popIn 0.3s ease-out forwards;
 }

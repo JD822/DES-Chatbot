@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { askOllama } from "./Components/OllamaApi";
+import { Dropdown } from "react-bootstrap";
+import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
+import RangeSlider from "react-bootstrap-range-slider";
+import { set } from "react-hook-form";
 
 function App() {
   const [input, setInput] = useState("");
@@ -14,6 +18,8 @@ function App() {
     },
   ]);
   const messagesEndRef = useRef(null);
+  const [textSize, setTextSize] = useState(16);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
     let id = sessionStorage.getItem("chat_session_id");
@@ -44,12 +50,16 @@ function App() {
 
     const userMsg = { role: "user", content: input };
 
+    setMessages((prevHistory) => [...prevHistory, userMsg]);
+
+    await new Promise((r) => setTimeout(r, 200));
+
     setMessages((prevHistory) => [
       ...prevHistory,
-      userMsg,
       { role: "assistant", content: "Thinking..." },
     ]);
 
+    console.log(messages);
     const currentInput = input;
     setInput("");
 
@@ -57,10 +67,16 @@ function App() {
       const data = await askOllama(currentInput, sessionId);
       setMessages((prevHistory) => {
         const newMessages = [...prevHistory];
-        newMessages[newMessages.length - 1] = {
+        newMessages.pop();
+        return newMessages;
+      });
+      await new Promise((r) => setTimeout(r, 200));
+      setMessages((prevHistory) => {
+        const newMessages = [...prevHistory];
+        newMessages.push({
           role: "assistant",
           content: data.response,
-        };
+        });
         return newMessages;
       });
     } catch (error) {
@@ -68,13 +84,53 @@ function App() {
     }
   };
 
+  const accessibilityStyles = {
+    "--bubble-text-size": `${textSize}px`,
+  };
+
   return (
     <div className="container">
-      <h2>DES Support Bot</h2>
+      <div className="header">
+        <h2>DES Support Bot</h2>
+        <Dropdown
+          style={{ marginLeft: "auto" }}
+          show={showDropdown}
+          onToggle={(isOpen, event) => {
+            if (event?.source !== "select") {
+              setShowDropdown(isOpen);
+            }
+          }}
+        >
+          <Dropdown.Toggle id="dropdown-basic-button">Settings</Dropdown.Toggle>
+
+          <Dropdown.Menu>
+            <Dropdown.Item href="#/action-1">
+              Text Size
+              <div>
+                <RangeSlider
+                  value={textSize || 16}
+                  min={12}
+                  max={24}
+                  step={4}
+                  onChange={(changeEvent) =>
+                    setTextSize(changeEvent.target.value)
+                  }
+                />
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item href="#/action-2">Another action</Dropdown.Item>
+            <Dropdown.Item href="#/action-3">Something else</Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown>
+      </div>
 
       <div className="chat-window">
         {messages.map((msg, i) => (
-          <div key={i} className={`message-wrapper ${msg.role}`}>
+          <div
+            key={i}
+            className={`message-wrapper ${msg.role} chat-pop`}
+            style={accessibilityStyles}
+          >
             <span className={`bubble ${msg.role}`}>{msg.content}</span>
           </div>
         ))}
@@ -82,12 +138,15 @@ function App() {
       </div>
 
       <input
+        className="text-input"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSend()}
         placeholder="Type here..."
       />
-      <button onClick={handleSend}>Send</button>
+      <button className="btn btn-primary" onClick={handleSend}>
+        Send
+      </button>
     </div>
   );
 }
