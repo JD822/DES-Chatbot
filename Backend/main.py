@@ -29,8 +29,8 @@ app.add_middleware(
 
 def verify_api_key(x_api_key: str = Header(None)):
     credits = API_KEY_CREDITS.get(x_api_key, 0)
-    if credits <= 0:
-        raise HTTPException(status_code=401, detail="Invalid API Key or insufficient credits")
+    # if credits <= 0:
+    #     raise HTTPException(status_code=401, detail="Invalid API Key or insufficient credits")
     
     return x_api_key
 
@@ -61,10 +61,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         if data.prompt.lower() == "yes":
             personalise_response = True
             return {"response": "Great! I will now ask a couple of questions to tailor my responses to you, could you please tell me your age?"}
-        else:
+        if data.prompt.lower() == "no":
             personalise_response = False
             return {"response": "No problem! I will provide general information. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me."}
+        else:
+            awaiting_personalisation_response = True
+            return {"response": "Please answer with 'Yes' or 'No' to help me personalise your experience. Do you want me to tailor my responses to you?"}
 
+    persona_customisation = ""
     if personalise_response:
         if user_age == "Age not provided":
             user_age = data.prompt if data.prompt.isdigit() else "Age not provided"
@@ -95,21 +99,49 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     - Detailed'''}
 
         if literacy_level == "Literacy level not provided":
-            literacy_level = data.prompt.lower()
-            if literacy_level not in ["simple", "detailed"]:
+            if data.prompt.lower() == "simple":
+                literacy_level = "simple, Exaplain things to a reading age of around 12, use simple language and short sentences, avoid medical jargon, and be concise."
+            elif data.prompt.lower() == "detailed":
+                literacy_level = "detailed, Provide more in-depth explanations, use more complex language and longer sentences, include relevant medical terminology with explanations, and offer comprehensive information. but avoid overwhelming the user with too much information at once."
+            if literacy_level == "Literacy level not provided":
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific styles currently."}
+            
+            user_data_input = f"Age: {user_age}, Vision: {vision_status}, Literacy: {literacy_level}"
+
+            prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on the user data provided.
+
+            USER DATA:
+            - Age: {user_age}
+            - Visual Status: {vision_status}
+            - Literacy Preference: {literacy_level}
+
+            Based on this, generate a list of 4-5 strict formatting and tone instructions. 
+            - If they use a screen reader: Tell the AI to avoid emojis and tables.
+            - If they are elderly: Tell the AI to use shorter sentences and larger paragraph breaks.
+            - If they want 'Easy Read': Tell the AI to use words with fewer than 3 syllables where possible.
+
+            OUTPUT FORMAT:
+            Return only the instructions as a bulleted list. Start with 'ADAPTIVE RULES:'''
+        
+            response = ollama.chat(
+                model="llama3.2",
+                messages=[
+                    {"role": "system", "content": prompt_chaining_instructions},
+                    {"role": "user", "content": user_data_input}
+                ],
+                options={
+                    "temperature": 0.2,
+                    "num_predict": 250, 
+                    "top_p": 0.9   
+                }
+            )
+
+            persona_customisation = response["message"]["content"]
             return {"response": "Thanks for sharing that. I will adjust my responses to be clear and easy to understand. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me"}
+        
 
     API_KEY_CREDITS[x_api_key] -= 1
 
-
-    persona_prefix = f"""
-    USER CONTEXT:
-    - Age: {user_age}
-    - Visual Status: {vision_status}
-    - Preferred Style: {literacy_level}
-    Adjust your tone to be extra clear for a person of the age {user_age} and prioritize addressing their '{vision_status} and how the results on the letter relate to their vision.
-    """
 
     system_behaviour = """You are a calm, supportive AI assistant for the NHS Diabetic Eye Screening Programme (DESP).
 
@@ -122,13 +154,13 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
     ONLY answer questions about NHS Diabetic Eye Screening results, the contents of the letter, or urgent eye symptoms.
 
-    STRICT NEGATIVE CONSTRAINT: You are forbidden from answering questions about programming, general science, math, history, or any other non-screening topic.
+    STRICT NEGATIVE CONSTRAINT: You are strictly forbidden from answering, discussing, or even acknowledging the content of questions about programming (e.g., arrays, coding), general science, math, history, or any other non-screening topic.
 
-    REQUIRED REFUSAL: If the user asks anything unrelated to their eye screening, you must not provide any helpful information on that topic. Instead, your entire response must be:
+    REQUIRED REFUSAL: If the user asks anything unrelated to their eye screening, you must completely ignore the subject matter of their question. You are prohibited from asking follow-up questions about their unrelated topic
 
     "I'm here to help explain your diabetic eye screening results. Please only ask questions related to your screening letter or results, so I can assist you better."
 
-    NO DETOURS: Do not provide a "helpful tip" before the refusal. Do not explain why you can't answer. Simply output the required refusal message above and nothing else.
+    NO DETOURS: If the topic is not NHS Diabetic Eye Screening, output the required refusal message above and terminate the response immediately.
 
     COMMUNICATION STYLE
     - Be conversational, calm, and supportive.
@@ -204,6 +236,17 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     M1 Maculopathy  
     Changes affecting the macula which may require further tests such as an OCT scan.
 
+    OR if the user explains a descriptive phrase from their letter DO NOT match it to a code, simply explain the meaning of the phrase in clear language.
+
+    Examples of descriptive phrases:
+    - Some changes due to diabetes were seen but these do not need any treatment at present
+    - Due to an existing eye condition, it may not be necessary for you to be screened by the DRSSW (Diabetic Retinopathy Screening Service Wales)
+    - No changes due to diabetes were seen
+    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
+    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
+    - Unfortunately, the photographs we obtained did not allow us to see the back of your eyes (Retina)
+    - Due to the presence of a cataract, we were unable to photograph the back of one or both eyes. Therefore, further examination by a hospital eye specialist is needed
+
     SAFETY RULES
     If a user reports symptoms such as:
     - sudden vision loss
@@ -227,12 +270,19 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     - You are an AI assistant, NOT a member of the clinical staff. You cannot book appointments or send follow-up letters.
         """
 
-    system_instruction = persona_prefix + system_behaviour
+    if personalise_response:
+        print("Persona Supplement:", persona_customisation)
+        system_instruction = persona_customisation + "\n\n" + system_behaviour
+    else:
+        system_instruction = system_behaviour
+
+    history = [msg for msg in chat_history[data.session_id] if isinstance(msg, dict)]
 
     response = ollama.chat(
         model="llama3.2",
         messages=[
             {"role": "system", "content": system_instruction},
+            *history,
             {"role": "user", "content": data.prompt}
         ],
         options={

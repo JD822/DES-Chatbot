@@ -18,8 +18,9 @@ function App() {
     },
   ]);
   const messagesEndRef = useRef(null);
-  const [textSize, setTextSize] = useState(16);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [textSize, setTextSize] = useState(16);
+  const [theme, setTheme] = useState("light");
 
   useEffect(() => {
     let id = sessionStorage.getItem("chat_session_id");
@@ -44,6 +45,10 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -84,14 +89,19 @@ function App() {
     }
   };
 
+  const handleThemeChange = (newTheme) => {
+    setTheme(newTheme);
+  };
+
   const accessibilityStyles = {
     "--bubble-text-size": `${textSize}px`,
+    "--theme": `${theme}`,
   };
 
   return (
-    <div className="container">
+    <div className="container" style={{ "--theme": theme }}>
       <div className="header">
-        <h2>DES Support Bot</h2>
+        <h2>DES Results Letter Bot</h2>
         <Dropdown
           style={{ marginLeft: "auto" }}
           show={showDropdown}
@@ -101,7 +111,12 @@ function App() {
             }
           }}
         >
-          <Dropdown.Toggle id="dropdown-basic-button">Settings</Dropdown.Toggle>
+          <Dropdown.Toggle
+            id="dropdown-basic-button"
+            className="settings-button"
+          >
+            Settings
+          </Dropdown.Toggle>
 
           <Dropdown.Menu>
             <Dropdown.Item href="#/action-1">
@@ -118,7 +133,63 @@ function App() {
                 />
               </div>
             </Dropdown.Item>
-            <Dropdown.Item href="#/action-2">Another action</Dropdown.Item>
+            <Dropdown.Item href="#/action-2">
+              <div>
+                Themes
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="themeRadios"
+                    id="lightModeRadio"
+                    value="option1"
+                    onChange={() => handleThemeChange("light")}
+                  />
+                  <label class="form-check-label" for="lightModeRadio">
+                    Light mode
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="themeRadios"
+                    id="darkModeRadio"
+                    value="option2"
+                    onChange={() => handleThemeChange("dark")}
+                  />
+                  <label class="form-check-label" for="darkModeRadio">
+                    Dark mode
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="themeRadios"
+                    id="deuteranopiaRadio"
+                    value="option3"
+                    onChange={() => handleThemeChange("colourblind friendly")}
+                  />
+                  <label class="form-check-label" for="deuteranopiaRadio">
+                    Colourblind Friendly
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input"
+                    type="radio"
+                    name="themeRadios"
+                    id="protanopiaRadio"
+                    value="option4"
+                    onChange={() => handleThemeChange("high contrast")}
+                  />
+                  <label class="form-check-label" for="protanopiaRadio">
+                    High Contrast
+                  </label>
+                </div>
+              </div>
+            </Dropdown.Item>
             <Dropdown.Item href="#/action-3">Something else</Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>
@@ -144,7 +215,11 @@ function App() {
         onKeyDown={(e) => e.key === "Enter" && handleSend()}
         placeholder="Type here..."
       />
-      <button className="btn btn-primary" onClick={handleSend}>
+      <button
+        className="btn btn-primary"
+        onClick={handleSend}
+        class="send-button"
+      >
         Send
       </button>
     </div>

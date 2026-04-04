@@ -5,7 +5,59 @@ body,
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background-color: #dbdbdb;
+}
+
+:root {
+  --bg-color: #f8f9fa;
+  --chat-window-color: #ffffff;
+  --chat-window-border-color: #e0e0e0;
+  --text-color: #2d3436;
+  --user-bubble-color: #0984e3;
+  --user-bubble-text-color: #ffffff;
+  --assistant-bubble-color: #f1f2f6;
+  --assistant-bubble-text-color: #2d3436;
+}
+
+[data-theme="dark"] {
+  --bg-color: #0d1321;
+  --chat-window-color: #1d2d44;
+  --chat-window-border-color: #3e5c76;
+  --text-color: #f0f0f2;
+  --user-bubble-color: #3a86ff;
+  --user-bubble-text-color: #ffffff;
+  --assistant-bubble-color: #3e5c76;
+  --assistant-bubble-text-color: #f5f5f5;
+}
+
+[data-theme="colourblind friendly"] {
+  /* Wong Pallette */
+  --bg-color: #f8f9fa;
+  --chat-window-color: #ffffff;
+  --chat-window-border-color: #d1d1d1;
+  --text-color: #000000;
+  --user-bubble-color: #0072b2;
+  --user-bubble-text-color: #ffffff;
+  --assistant-bubble-color: #f0e442;
+  --assistant-bubble-text-color: #000000;
+}
+
+[data-theme="high contrast"] {
+  --bg-color: #ffffff;
+  --chat-window-color: #ffffff;
+  --chat-window-border-color: #2d3436;
+  --text-color: #1a1a1a;
+  --user-bubble-color: #0056b3;
+  --user-bubble-text-color: #ffffff;
+  --assistant-bubble-color: #e8e8e8;
+  --assistant-bubble-text-color: #1a1a1a;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 .header {
@@ -28,13 +80,13 @@ body,
 .chat-window {
   height: 600px;
   overflow-y: auto;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--chat-window-border-color);
   padding: 10px;
   margin-bottom: 10px;
   display: flex;
   flex-direction: column;
   border-radius: 10px;
-  background-color: #ffffff;
+  background-color: var(--chat-window-color);
 }
 
 .message-wrapper {
@@ -60,13 +112,19 @@ body,
 }
 
 .bubble.user {
-  background: #007bff;
-  color: white;
+  background: var(--user-bubble-color);
+  color: var(--user-bubble-text-color);
+  transition:
+    background 0.3s ease,
+    color 0.3s ease;
 }
 
 .bubble.assistant {
-  background: #e9e9eb;
-  color: black;
+  background: var(--assistant-bubble-color);
+  color: var(--assistant-bubble-text-color);
+  transition:
+    background 0.3s ease,
+    color 0.3s ease;
 }
 
 .text-input {
@@ -97,4 +155,26 @@ body,
 
 .chat-pop {
   animation: popIn 0.3s ease-out forwards;
+}
+
+.settings-button {
+  background-color: transparent;
+  border: 2px solid var(--text-color);
+  color: var(--text-color);
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.send-button {
+  background-color: var(--user-bubble-color);
+  border: none;
+  color: var(--user-bubble-text-color);
+  padding: 10px 20px;
+  border-radius: 5px;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
