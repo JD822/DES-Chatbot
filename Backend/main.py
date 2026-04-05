@@ -38,12 +38,14 @@ chat_history = {}
 class Prompt(BaseModel):
     session_id: str
     prompt: str
+    onboarding: bool 
 
 awaiting_personalisation_response = True
 personalise_response = False
 user_age = "Age not provided"
 vision_status = "Vision status not provided"
 literacy_level = "Literacy level not provided"
+persona_customisation = ""
 
 @app.post("/generate")
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
@@ -53,6 +55,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
+
+    print("Onboarding status:", data.onboarding)
+    if data.onboarding:
+        awaiting_personalisation_response = True
+        personalise_response = False
+        user_age = "Age not provided"
+        vision_status = "Vision status not provided"
+        literacy_level = "Literacy level not provided"
 
     chat_history[data.session_id].append(data.prompt)
 
@@ -68,7 +78,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             awaiting_personalisation_response = True
             return {"response": "Please answer with 'Yes' or 'No' to help me personalise your experience. Do you want me to tailor my responses to you?"}
 
-    persona_customisation = ""
     if personalise_response:
         if user_age == "Age not provided":
             user_age = data.prompt if data.prompt.isdigit() else "Age not provided"
@@ -94,15 +103,12 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             vision_status = data.prompt.lower()
             if vision_status not in ["none", "colour blindness", "low vision", "light sensitivity", "screen reader user"]:
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific vision statuses currently."}
-            return {"response": '''Thank you for sharing that. Lastly, how would you describe your preferred style of communication?
-                    - Simple
-                    - Detailed'''}
+            return {"response": '''Thank you for sharing that. Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, 
+                    this will help me adjust my language to suit you better. You can say something like 'I have a good understanding and want detailed explanations' or 'I find medical information 
+                    confusing and want simple explanations' or anything in between!'''}
 
         if literacy_level == "Literacy level not provided":
-            if data.prompt.lower() == "simple":
-                literacy_level = "simple, Exaplain things to a reading age of around 12, use simple language and short sentences, avoid medical jargon, and be concise."
-            elif data.prompt.lower() == "detailed":
-                literacy_level = "detailed, Provide more in-depth explanations, use more complex language and longer sentences, include relevant medical terminology with explanations, and offer comprehensive information. but avoid overwhelming the user with too much information at once."
+            literacy_level = data.prompt.lower()
             if literacy_level == "Literacy level not provided":
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific styles currently."}
             
@@ -113,12 +119,17 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             USER DATA:
             - Age: {user_age}
             - Visual Status: {vision_status}
-            - Literacy Preference: {literacy_level}
+            - Literacy Level: {literacy_level}
+
 
             Based on this, generate a list of 4-5 strict formatting and tone instructions. 
             - If they use a screen reader: Tell the AI to avoid emojis and tables.
             - If they are elderly: Tell the AI to use shorter sentences and larger paragraph breaks.
             - If they want 'Easy Read': Tell the AI to use words with fewer than 3 syllables where possible.
+
+            Choose a theme for the frontend interface that would best suit the user's needs, choose from 'light', 'dark', 'high contrast', or 'colourblind friendly' and include it in the format 'Theme: value'.
+            Choose a text size for the frontend interface that would best suit the user's needs, with a value between 12 and 24. Include it in the format 'Text Size: value'.
+            Include these frontend customisation at the end of the instructions.
 
             OUTPUT FORMAT:
             Return only the instructions as a bulleted list. Start with 'ADAPTIVE RULES:'''
@@ -137,7 +148,22 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             )
 
             persona_customisation = response["message"]["content"]
-            return {"response": "Thanks for sharing that. I will adjust my responses to be clear and easy to understand. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me"}
+            
+            theme_value = "default"
+            if "Theme:" in persona_customisation:
+                theme_line = [line for line in persona_customisation.split('\n') if "Theme:" in line][0]
+                theme_value = theme_line.split(":")[1].strip().lower()
+
+
+            text_size = "16"
+            if "Text Size:" in persona_customisation:
+                size_line = [line for line in persona_customisation.split('\n') if "Text Size:" in line][0]
+                text_size = size_line.split(":")[1].strip()
+            return {
+                "theme": theme_value,
+                "text_size": text_size,
+                "response": "Thanks for sharing that. I will adjust my responses to be clear and easy to understand. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me"
+                }
         
 
     API_KEY_CREDITS[x_api_key] -= 1
@@ -218,23 +244,47 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     TECHNICAL DATA (NHS STANDARDS)
 
     R0 No retinopathy  
-    No diabetic eye damage was found.
+    No changes in the eye due to diabetes. People with no retinopathy are at low risk of 
+    developing any sight-threatening changes and will be recalled for screening in one 
+    to two years.
 
     R1 Background retinopathy  
-    Small early changes in the blood vessels (microaneurysms).  
-    Very common and usually does not affect vision, but it means diabetes control is important.
+    Vessels become blocked or leaky causing blood and other fluid to become visible on 
+    the retina. These changes are not sight-threatening and will not affect your vision but 
+    improvements in self-care may help to reduce the risk of retinopathy getting worse. 
+    People with background retinopathy will be recalled in one year for screening. 
 
     R2 Pre-proliferative retinopathy  
-    More significant blood vessel changes that require closer monitoring.
+    More changes due to diabetes are visible on the back of the eye. This could be more 
+    bleeds, as well as signs of a lack of oxygen and changes in the shape of blood vessels 
+    themselves. The risk of sight-threatening changes developing have increased. Therefore, 
+    you could be screened more often, every three to six months or would be referred to a 
+    specialist for more testing and closer monitoring. These 
+    changes will not affect your vision but improvements in self-care may help to reduce the 
+    risk of retinopathy getting worse.
 
     R3 Proliferative retinopathy  
-    Advanced changes that need urgent specialist treatment.
+    At this stage the growth hormone known as VEGF is increased and abnormal blood 
+    vessels grow on the retina. These new vessels grow into the gel in the middle of the 
+    eye and bleed. Once they bleed, they will begin to affect sight causing black spots in 
+    your vision or an increase in floaters. You will be referred to a specialist for testing (see 
+    Additional healthcare) and possibly need treatment to stop the new vessels from 
+    growing.
 
     M0 No maculopathy  
-    No signs of damage to the macula (the part of the eye responsible for detailed central vision).
+    No changes due to diabetes within the macular area (see Figure 1). If the retinopathy 
+    level is R0 or R1, screening recall would be based on the retinopathy level
 
     M1 Maculopathy  
-    Changes affecting the macula which may require further tests such as an OCT scan.
+    Changes due to diabetes can be seen within the macular area. Vessels in or around the 
+    macula area become blocked or leaky. When blood and fluid leaks into the macular 
+    it can cause swelling called oedema. Because the fovea is responsible for our central 
+    vision and being able to read, swelling in this area has a higher risk of threatening sight. 
+    However, not all screening programmes have the test available (known as ocular surface 
+    temperature, or OCT imaging) to check for swelling and therefore this level would be 
+    referred to a specialist for further tests and monitoring (see Additional healthcare). If 
+    swelling is detected, then treatment would be needed to reduce the swelling and limit 
+    the effect on vision.
 
     OR if the user explains a descriptive phrase from their letter DO NOT match it to a code, simply explain the meaning of the phrase in clear language.
 

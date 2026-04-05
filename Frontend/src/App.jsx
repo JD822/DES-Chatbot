@@ -4,12 +4,10 @@ import { Dropdown } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
 import RangeSlider from "react-bootstrap-range-slider";
-import { set } from "react-hook-form";
 
 function App() {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
-  const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -21,8 +19,7 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [textSize, setTextSize] = useState(16);
   const [theme, setTheme] = useState("light");
-
-  useEffect(() => {
+  const [sessionId, setSessionId] = useState(() => {
     let id = sessionStorage.getItem("chat_session_id");
 
     if (!id) {
@@ -30,13 +27,12 @@ function App() {
       sessionStorage.setItem("chat_session_id", id);
     }
 
-    setSessionId(id);
-  }, []);
+    return id;
+  });
 
   useEffect(() => {
     const syncWithBackend = async () => {
-      await askOllama("Start_Onboarding", id);
-      setSessionId(id);
+      await askOllama("Start_Onboarding", sessionId, true);
     };
 
     syncWithBackend();
@@ -69,7 +65,15 @@ function App() {
     setInput("");
 
     try {
-      const data = await askOllama(currentInput, sessionId);
+      console.log("Sending prompt to backend:", currentInput);
+      console.log("Session ID:", sessionId);
+      const data = await askOllama(currentInput, sessionId, false);
+      if (data.theme) {
+        setTheme(data.theme);
+      }
+      if (data.text_size) {
+        setTextSize(data.text_size);
+      }
       setMessages((prevHistory) => {
         const newMessages = [...prevHistory];
         newMessages.pop();
@@ -126,7 +130,7 @@ function App() {
                   value={textSize || 16}
                   min={12}
                   max={24}
-                  step={4}
+                  step={2}
                   onChange={(changeEvent) =>
                     setTextSize(changeEvent.target.value)
                   }
@@ -215,6 +219,7 @@ function App() {
         onKeyDown={(e) => e.key === "Enter" && handleSend()}
         placeholder="Type here..."
       />
+      <div style={{ padding: "2px" }}></div>
       <button
         className="btn btn-primary"
         onClick={handleSend}
