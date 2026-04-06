@@ -45,23 +45,23 @@ personalise_response = False
 user_age = "Age not provided"
 vision_status = "Vision status not provided"
 literacy_level = "Literacy level not provided"
+user_experience = "Experience not provided"
 persona_customisation = ""
 
 @app.post("/generate")
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
-    print("Prompt received:", data.prompt)
 
-    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level
+    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation
 
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
 
-    print("Onboarding status:", data.onboarding)
     if data.onboarding:
         awaiting_personalisation_response = True
         personalise_response = False
         user_age = "Age not provided"
         vision_status = "Vision status not provided"
+        user_experience = "Experience not provided"
         literacy_level = "Literacy level not provided"
 
     chat_history[data.session_id].append(data.prompt)
@@ -88,7 +88,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 
                 if 12 <= age_val <= 100:
                     user_age = age_val
-                    return {"response": f'''Got it, you're {user_age}. Do you have any of the following visual issues? 
+                    return {"response": f'''Got it, you're {user_age}. Do you have any of the following visual impairments? 
                             - None
                             - Colour Blindness
                             - Low Vision
@@ -102,37 +102,77 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         if vision_status == "Vision status not provided":
             vision_status = data.prompt.lower()
             if vision_status not in ["none", "colour blindness", "low vision", "light sensitivity", "screen reader user"]:
-                return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific vision statuses currently."}
-            return {"response": '''Thank you for sharing that. Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, 
+                return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, "
+                "I can only adjust to one of those specific vision statuses currently."}
+            return {"response": '''Thank you for sharing that. Now can you please tell me how long you have been a diabetic for? 
+                    you can say something like 'I have been managing my condition for 5 years' or 'I am new to diabetes management'. '''}
+        
+        if user_experience == "Experience not provided":
+            user_experience = data.prompt
+            if user_experience == "Experience not provided":
+                return {"response": "Please provide your experience level, that way I can adjust my explanations to suit you better."}
+            return {"response": '''Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, 
                     this will help me adjust my language to suit you better. You can say something like 'I have a good understanding and want detailed explanations' or 'I find medical information 
-                    confusing and want simple explanations' or anything in between!'''}
+                    confusing and want simple explanations' or anything in between'''}
 
         if literacy_level == "Literacy level not provided":
-            literacy_level = data.prompt.lower()
+            literacy_level = data.prompt
             if literacy_level == "Literacy level not provided":
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific styles currently."}
             
-            user_data_input = f"Age: {user_age}, Vision: {vision_status}, Literacy: {literacy_level}"
+            user_data_input = f'''
+            User Inputs:
+            Age: {user_age}
+            Visual impairment: {vision_status} 
+            Experience Managing Diabetes: {user_experience}
+            Literacy: {literacy_level}
+        '''
+            print ("User Data Input for Persona Supplement:", user_data_input)
 
-            prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on the user data provided.
+            prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on user data to bridge the gap between the user's context and their medical results.
 
-            USER DATA:
-            - Age: {user_age}
-            - Visual Status: {vision_status}
-            - Literacy Level: {literacy_level}
+            CRITICAL RULES:
+            - Experience vs. Literacy: Prioritise "Years of Experience" as the primary driver for terminology.
+                - Expert (10+ years), use a collaborative, clinical tone. You are PROHIBITED from using basic analogies 
+                - Intermediate (2-10 years) use an informative, neutral tone. Balance explanation with implications  
+                - Novice (<2 years), use a supportive, educational tone. Focus on explaining what the result is
+            - NEVER apply novice rules to an expert. NEVER apply expert rules to a novice.
+            - Do NOT mix simple language with professional terminology. Choose ONE path and apply it consistently.
+            - ADAPTIVE RULES must contain NO UI properties. Theme and Text Size belong ONLY in FRONTEND CUSTOMISATIONS.
+            - Provde 4-5 specific, actionable formatting and tone instructions based on the user's data. Do not include category labels without directives.
 
+            SELF-CHECK (run this before generating output):
+            - What is the user's experience level? → [Expert / Intermediate / Novice]
+            - Which tone path does this trigger? → [Clinical / Neutral / Educational]
+            - Are all 4-5 rules actionable directives, not category labels?
+            - Do any ADAPTIVE RULES contain UI properties? If yes, remove them.
+            
+            TASK:
+            Strictly based on the user inputs, generate 4-5 strict formatting and tone instructions.
 
-            Based on this, generate a list of 4-5 strict formatting and tone instructions. 
-            - If they use a screen reader: Tell the AI to avoid emojis and tables.
-            - If they are elderly: Tell the AI to use shorter sentences and larger paragraph breaks.
-            - If they want 'Easy Read': Tell the AI to use words with fewer than 3 syllables where possible.
+            RULES:
+            - Be written as a behavioural instruction, not a label
+            - Cover one of: sentence complexity, terminology usage, explanation depth, use of analogies (if applicable), emotional register
 
-            Choose a theme for the frontend interface that would best suit the user's needs, choose from 'light', 'dark', 'high contrast', or 'colourblind friendly' and include it in the format 'Theme: value'.
-            Choose a text size for the frontend interface that would best suit the user's needs, with a value between 12 and 24. Include it in the format 'Text Size: value'.
-            Include these frontend customisation at the end of the instructions.
+            FRONTEND LOGIC:
+
+            Theme: Select the UI Theme strictly based on user data: If 'Visual impairment' is 'none', you are prohibited from using 'High Contrast' or 'Color Blind Friendly'—instead, YOU MUST choose 'Dark' for users over 40 or 'Light' for users 40 and under; trigger 'High Contrast' only when a specific visual impairment is explicitly stated (e.g., 'Colour Blindness' = 'Color Blind Friendly', 'Low Vision' = 'High Contrast').
+            Text Size: Standard is 16. Increase (18-24) only if visual impairment or age > 65 is indicated.
 
             OUTPUT FORMAT:
-            Return only the instructions as a bulleted list. Start with 'ADAPTIVE RULES:'''
+            Respond Strictly in the following format you are PROHIBITED from deviating from this format. YOU MUST NOT output any self-check or reasoning steps, only the final instructions and customisations:
+
+            ADAPTIVE RULES:
+            - Rule 1 
+            - Rule 2
+            - Rule 3
+            - Rule 4
+            - Rule 5 (if applicable)
+
+            FRONTEND CUSTOMISATIONS:
+            Theme: [Value]
+            Text Size: [Number]
+            '''
         
             response = ollama.chat(
                 model="llama3.2",
@@ -148,6 +188,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             )
 
             persona_customisation = response["message"]["content"]
+            print("Persona Customisation Instructions:", persona_customisation)
             
             theme_value = "default"
             if "Theme:" in persona_customisation:
@@ -170,17 +211,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
 
     system_behaviour = """You are a calm, supportive AI assistant for the NHS Diabetic Eye Screening Programme (DESP).
-
     Your role is to help people understand their screening result letters in clear, reassuring language while remaining concise and medically accurate.
 
     PRIMARY GOAL
     Help the user understand what their result code means without overwhelming them or causing unnecessary worry.
 
     STRICT TOPIC CONTROL:
-
-    ONLY answer questions about NHS Diabetic Eye Screening results, the contents of the letter, or urgent eye symptoms.
-
-    STRICT NEGATIVE CONSTRAINT: You are strictly forbidden from answering, discussing, or even acknowledging the content of questions about programming (e.g., arrays, coding), general science, math, history, or any other non-screening topic.
+    - ONLY answer questions about NHS Diabetic Eye Screening results, the contents of the letter, or urgent eye symptoms.
+    - STRICT NEGATIVE CONSTRAINT: You are strictly forbidden from answering, discussing, or even acknowledging the content of questions about any non-screening topic.
 
     REQUIRED REFUSAL: If the user asks anything unrelated to their eye screening, you must completely ignore the subject matter of their question. You are prohibited from asking follow-up questions about their unrelated topic
 
@@ -209,12 +247,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     3. Simple explanation in plain English
     4. Reassurance or next step if relevant
 
-    Use 2-4 short bullet points when explaining results.
-
-    THE GOLDEN RULE - NO ASSUMPTIONS
+    STRICTLY NO ASSUMPTIONS
     NEVER assume a screening result.
 
-    If the user has not provided their screening result code (R0-R3 or M0-M1), politely ask:
+    If the user has not provided their screening result code (R0-R3 or M0-M1) or a descriptive phrase from a letter, politely ask:
 
     "What result is written on your letter?"
 
@@ -231,8 +267,21 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     1. Check if the user message explicitly contains a valid code:
     R0, R1, R2, R3, M0, or M1.
 
+    or a descriptive phrase:
+     
+    Examples of descriptive phrases:
+    - Some changes due to diabetes were seen but these do not need any treatment at present
+    - Due to an existing eye condition, it may not be necessary for you to be screened by the DRSSW (Diabetic Retinopathy Screening Service Wales)
+    - No changes due to diabetes were seen
+    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
+    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
+    - Unfortunately, the photographs we obtained did not allow us to see the back of your eyes (Retina)
+    - Due to the presence of a cataract, we were unable to photograph the back of one or both eyes. Therefore, further examination by a hospital eye specialist is needed
+
+    DO NOT match it to a code, simply explain the meaning of the phrase in clear language
+
     2. If NO valid code is present:
-    - Do NOT mention any result codes.
+    - Do NOT mention any result codes or descriptive phrases.
     - Do NOT guess or summarise results.
     - Ask the user to provide the code written on their letter.
 
@@ -285,17 +334,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     referred to a specialist for further tests and monitoring (see Additional healthcare). If 
     swelling is detected, then treatment would be needed to reduce the swelling and limit 
     the effect on vision.
-
-    OR if the user explains a descriptive phrase from their letter DO NOT match it to a code, simply explain the meaning of the phrase in clear language.
-
-    Examples of descriptive phrases:
-    - Some changes due to diabetes were seen but these do not need any treatment at present
-    - Due to an existing eye condition, it may not be necessary for you to be screened by the DRSSW (Diabetic Retinopathy Screening Service Wales)
-    - No changes due to diabetes were seen
-    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
-    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
-    - Unfortunately, the photographs we obtained did not allow us to see the back of your eyes (Retina)
-    - Due to the presence of a cataract, we were unable to photograph the back of one or both eyes. Therefore, further examination by a hospital eye specialist is needed
 
     SAFETY RULES
     If a user reports symptoms such as:
