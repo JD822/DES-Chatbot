@@ -198,7 +198,6 @@ function App() {
           </Dropdown.Menu>
         </Dropdown>
       </div>
-
       <div className="chat-window">
         {messages.map((msg, i) => (
           <div
@@ -211,13 +210,16 @@ function App() {
         ))}
         <div ref={messagesEndRef} />
       </div>
-
+      <p1 style={{ fontSize: "10px", padding: "2px" }}>
+        This is an AI assistant therefore can make mistakes. Always refer to a
+        healthcare professional for medical advice.
+      </p1>
       <input
         className="text-input"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        placeholder="Type here..."
+        placeholder="Type here... "
       />
       <div style={{ padding: "2px" }}></div>
       <button
