@@ -35,6 +35,8 @@ def verify_api_key(x_api_key: str = Header(None)):
     return x_api_key
 
 chat_history = {}
+result_store = []
+
 class Prompt(BaseModel):
     session_id: str
     prompt: str
@@ -53,7 +55,7 @@ persona_customisation = ""
 @app.post("/generate")
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
-    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation
+    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation, result_store
 
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
@@ -66,6 +68,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         user_experience = "Experience not provided"
         literacy_level = "Literacy level not provided"
         chat_history[data.session_id] = []
+        result_store = []
 
     chat_history[data.session_id].append(data.prompt)
 
@@ -87,10 +90,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             match = re.search(r'\d+', data.prompt)
             
             if match:
-                age_val = int(match.group())
+                age_value = int(match.group())
                 
-                if 12 <= age_val <= 100:
-                    user_age = age_val
+                if 12 <= age_value <= 100:
+                    user_age = age_value
                     return {"response": f'''Got it, you're {user_age}. Do you have any of the following visual impairments? 
                             - None
                             - Colour Blindness
@@ -107,16 +110,20 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             if vision_status not in ["none", "colour blindness", "low vision", "light sensitivity", "screen reader user"]:
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, "
                 "I can only adjust to one of those specific vision statuses currently."}
-            return {"response": '''Thank you for sharing that. Now can you please tell me how long you have been a diabetic for? 
-                    you can say something like 'I have been managing my condition for 5 years' or 'I am new to diabetes management'. '''}
+            return {"response": '''Thank you for sharing that. Now can you please tell me how long you have been a diabetic for? Please only use a number for the amount of years e.g. 0 for a new diabetic or 20 for 20 years'''}
         
         if user_experience == "Experience not provided":
-            user_experience = data.prompt
-            if user_experience == "Experience not provided":
-                return {"response": "Please provide your experience level, that way I can adjust my explanations to suit you better."}
-            return {"response": '''Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, 
-                    this will help me adjust my language to suit you better. You can say something like 'I have a good understanding and want detailed explanations' or 'I find medical information 
-                    confusing and want simple explanations' or anything in between'''}
+            user_experience = data.prompt if data.prompt.isdigit() else "Age not provided"
+            match = re.search(r'\d+', data.prompt)
+            
+            if match:
+                experience_value = int(match.group())
+                
+                if 0 <= experience_value <= 100:
+                    user_experience = experience_value
+                    return {"response": '''Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, this will help me adjust my language to suit you better. You can say something like 'I have a good understanding and want detailed explanations' or 'I find medical information confusing and want simple explanations' or anything in between'''}
+            else:
+                return {"response": "Please provide how many years you have been a diabetic using just a number, that way I can adjust my explanations to suit you better."}
 
         if literacy_level == "Literacy level not provided":
             literacy_level = data.prompt
@@ -127,40 +134,248 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             User Inputs:
             Age: {user_age}
             Visual impairment: {vision_status} 
-            Experience Managing Diabetes: {user_experience}
+            Years managing diabetes: {user_experience}
             Literacy: {literacy_level}
         '''
-            print ("User Data Input for Persona Supplement:", user_data_input)
+            #print("User Data Input for Persona Supplement:", user_data_input)
+
+            def customise_interface(age, impairment):
+                if impairment.lower() == 'colour blindness':
+                    return 'colourblind friendly'
+                if impairment.lower() == 'low vision':
+                    return 'high contrast'
+                if impairment.lower() == 'light sensitivity':
+                    return 'dark'
+                if age <= 40:
+                    return 'light'
+                if age > 40:
+                    return 'dark'
+            
+            theme_selection = customise_interface(user_age,vision_status)
+
+            def experience_level_calculation(experience_level):
+                if experience_level <= 3:
+                    base_level = 'novice'
+                elif experience_level <= 10:
+                    base_level = 'intermediate'
+                else:
+                    base_level = 'expert'
+                return base_level
+
+            base_level = experience_level_calculation(user_experience)
+
+
+            low_indicators = [
+            "confusing",
+            "confused",
+            "difficult",
+            "overwhelming",
+            "overwhelmed",
+            "hard to understand",
+            "don't understand",
+            "do not understand",
+            "struggle",
+            "struggling",
+            "lost",
+            "no idea",
+            "don't know",
+            "do not know",
+            "new to this",
+            "not sure",
+            "unsure",
+            "complicated",
+            "complex",
+            "too much information",
+            "hard to follow",
+            "makes no sense",
+            "doesn't make sense",
+            "does not make sense",
+            "can't understand",
+            "cannot understand",
+            "finding it hard",
+            "finding it difficult"
+            ]
+
+            moderate_indicators = [
+            "some understanding",
+            "basic understanding",
+            "getting there",
+            "most of it",
+            "most terms",
+            "generally understand",
+            "fairly comfortable",
+            "mostly understand",
+            "starting to understand",
+            "beginning to understand",
+            "learning",
+            "picking it up",
+            "getting used to",
+            "need context",
+            "need help with",
+            "need clarification",
+            "sometimes need",
+            "occasionally need",
+            "not always sure",
+            "not always clear",
+            "need numbers explained",
+            "need results explained"
+            ]
+
+            high_indicators = [
+            "comfortable",
+            "very comfortable",
+            "confident",
+            "fully understand",
+            "good understanding",
+            "strong understanding",
+            "detailed explanations",
+            "clinical",
+            "technical",
+            "healthcare",
+            "medical professional",
+            "work in healthcare",
+            "nurse",
+            "doctor",
+            "pharmacist",
+            "clinician",
+            "specialist",
+            "in depth",
+            "in-depth",
+            "advanced",
+            "expert",
+            "experienced",
+            "well versed",
+            "well-versed",
+            "familiar with",
+            "no need to simplify",
+            "don't need it simplified",
+            "do not need it simplified",
+            "understand medical terms",
+            "understand clinical terms",
+            "comfortable with jargon"
+            ]
+
+
+            def literacy_level_calculation(prompt):
+                literacy_indicators = [0,0,0]
+                for phrase in low_indicators:
+                    if phrase in prompt.lower():
+                        literacy_indicators[0] += 1
+                for phrase in moderate_indicators:
+                    if phrase in prompt.lower():
+                        literacy_indicators[1] += 1
+                for phrase in high_indicators:
+                    if phrase in prompt.lower():
+                        literacy_indicators[2] += 1
+
+                max_score = max(literacy_indicators)
+
+                if max_score == 0:
+                    literacy = "MODERATE"
+                elif literacy_indicators.index(max_score) == 0:
+                    literacy = "LOW"
+                elif literacy_indicators.index(max_score) == 1:
+                    literacy = "MODERATE"
+                else:
+                    literacy = "HIGH"
+
+                return literacy
+        
+            literacy_calculation = literacy_level_calculation(data.prompt)
+            #print(literacy_calculation)
+
+            if literacy_calculation == 'LOW':
+                if base_level == 'expert':
+                    base_level = 'intermediate'
+                if base_level == 'intermediate':
+                    base_level = 'novice'
+
+            #print(base_level)
+
+            reasoning_examples = {
+            "novice": '''RULES:
+            - TONE: Warm and encouraging. Write as if speaking to someone new to this. Never clinical, never rushed.
+            - SENTENCES: Maximum 12 words per sentence. One idea per sentence. 
+            Start a new paragraph for each new concept.
+            - TERMINOLOGY: Always use the plain term first. Add the clinical 
+            term in brackets immediately after. Never use a clinical term 
+            alone. Example: "the back of your eye (retina)" not "the retina".
+            - ANALOGIES: Use one simple everyday analogy if applicable.
+            - KNOWLEDGE: Explain everything from scratch. Never reference
+            prior knowledge, or assume they remember anything from before.
+            - EMPATHY: Weave reassurance into every sentence naturally. 
+            Never save it for the end. Never skip it because the result 
+            is good news.
+            - READING LEVEL: Every sentence must be understandable to a 
+            12 year old without re-reading. If a sentence requires 
+            prior knowledge to parse, rewrite it.
+            ''',
+
+            "intermediate": '''RULES:
+            - TONE: Collaborative and empowering. Treat them as an active 
+            partner in managing their condition, not a passive recipient 
+            of information. Use "your result shows" not "the result shows".
+            - SENTENCES: Use compound sentences that connect cause and effect. 
+            Example: "Because the vessels are leaking, fluid builds up 
+            which can affect your vision over time." Never use short 
+            choppy sentences — these feel patronising at this level.
+            - TERMINOLOGY: Lead with the clinical term, follow immediately 
+            with a brief functional definition. Example: "maculopathy — 
+            where changes occur in the central area responsible for 
+            reading vision". Never define basic terms like retina or diabetes.
+            - ANALOGIES: Use mechanical or functional analogies only 
+            - KNOWLEDGE: Skip all introductory context about diabetes. 
+            Assume they understand the basics but may not recall 
+            specific grading details.
+            - EMPATHY: Acknowledge the effort of long term management 
+            directly. One acknowledgement only — do not repeat.
+            ''',
+
+            "expert": '''RULES:
+            - TONE: Peer to peer. Direct and efficient. Treat them as a 
+            clinical equal. Never explain what they already know. 
+            Never soften findings unnecessarily.
+            - SENTENCES: Dense, information rich sentences are appropriate. 
+            Prioritise precision over readability. Lead with the finding, 
+            follow with the implication.
+            - TERMINOLOGY: Use standard clinical terminology exclusively — 
+            HbA1c, euglycaemia, VEGF, vitreous haemorrhage, OCT imaging. 
+            Never substitute a plain language term for a clinical one. 
+            Never define standard terms.
+            - ANALOGIES: Prohibited. State the physiological fact directly. 
+            - KNOWLEDGE: Assume complete mastery. Skip all preparation 
+            context, basic definitions, and standard next step 
+            explanations they will already know. Focus only on 
+            what is specific to their result.
+            - EMPATHY: Express through precision and respect for autonomy 
+            only. One brief acknowledgement maximum — never repeated, 
+            never emotional. Example: "This result warrants prompt 
+            review" not "I know this might be worrying for you".
+            '''
+            }
+        
+            communication_example = reasoning_examples[base_level]
+
 
             prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on user data to bridge the gap between the user's context and their medical results.
 
-            CRITICAL RULES:
-            - Experience vs. Literacy: Prioritise "Years of Experience" as the primary driver for terminology.
-                - Expert (10+ years), use a collaborative, clinical tone. You are PROHIBITED from using basic analogies 
-                - Intermediate (2-10 years) use an informative, neutral tone. Balance explanation with implications  
-                - Novice (<2 years), use a supportive, educational tone. Focus on explaining what the result is
-            - NEVER apply novice rules to an expert. NEVER apply expert rules to a novice.
-            - Do NOT mix simple language with professional terminology. Choose ONE path and apply it consistently.
-            - ADAPTIVE RULES must contain NO UI properties. Theme and Text Size belong ONLY in FRONTEND CUSTOMISATIONS.
-            - Provde 4-5 specific, actionable formatting and tone instructions based on the user's data. Do not include category labels without directives.
+            This user fits into the {base_level} group. The following rules 
+            describe how to communicate to a user in that group
 
-            SELF-CHECK (run this before generating output):
-            - What is the user's experience level? → [Expert / Intermediate / Novice]
-            - Which tone path does this trigger? → [Clinical / Neutral / Educational]
-            - Are all 4-5 rules actionable directives, not category labels?
-            - Do any ADAPTIVE RULES contain UI properties? If yes, remove them.
-            
+            {communication_example}
+
             TASK:
-            Strictly based on the user inputs, generate 4-5 strict formatting and tone instructions.
+            Using the baseline template above as a structural guide only, generate 
+            4-5 formatting and tone instructions that are specific to this individual 
+            user. Each rule must reflect at least one detail from their inputs — such 
+            as their age, stated literacy, specific confusion, or experience level. 
 
             RULES:
             - Be written as a behavioural instruction, not a label
             - Cover one of: sentence complexity, terminology usage, explanation depth, use of analogies (if applicable), emotional register
-
-            FRONTEND LOGIC:
-
-            Theme: Select the UI Theme strictly based on user data: If 'Visual impairment' is 'none', you are prohibited from using 'High Contrast' or 'Color Blind Friendly'—instead, YOU MUST choose 'Dark' for users over 40 or 'Light' for users 40 and under; trigger 'High Contrast' only when a specific visual impairment is explicitly stated (e.g., 'Colour Blindness' = 'Color Blind Friendly', 'Low Vision' = 'High Contrast').
-            Text Size: Standard is 16. Increase (18-24) only if visual impairment or age > 65 is indicated.
+            - You are a solo AI assistant, not part of a team or service.
+            - Never use wording that implies you are part of the clinical team. Use "the screening programme" and "the results show" instead.
+            - You CANNOT book appointments so do not imply that you can
 
             OUTPUT FORMAT:
             Respond Strictly in the following format you are PROHIBITED from deviating from this format. YOU MUST NOT output any self-check or reasoning steps, only the final instructions and customisations:
@@ -170,11 +385,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             - Rule 2
             - Rule 3
             - Rule 4
-            - Rule 5 (if applicable)
-
-            FRONTEND CUSTOMISATIONS:
-            Theme: [Value]
-            Text Size: [Number]
+            - Rule 5
             '''
         
             response = ollama.chat(
@@ -185,7 +396,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 ],
                 options={
                     "temperature": 0.2,
-                    "num_predict": 250, 
+                    "num_predict": 500, 
                     "top_p": 0.9   
                 }
             )
@@ -196,502 +407,394 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             })
 
             persona_customisation = response["message"]["content"]
-            print("Persona Customisation Instructions:", persona_customisation)
-            
-            theme_value = "default"
-            if "Theme:" in persona_customisation:
-                theme_line = [line for line in persona_customisation.split('\n') if "Theme:" in line][0]
-                theme_value = theme_line.split(":")[1].strip().lower()
+            #print("Persona Customisation Instructions:", persona_customisation)
 
+            if user_age > 60:
+                text_size = "20"
+            else:
+                text_size = "16"
 
-            text_size = "16"
-            if "Text Size:" in persona_customisation:
-                size_line = [line for line in persona_customisation.split('\n') if "Text Size:" in line][0]
-                text_size = size_line.split(":")[1].strip()
             return {
-                "theme": theme_value,
+                "theme": theme_selection,
                 "text_size": text_size,
-                "response": "Thanks for sharing that. I will adjust my responses to be clear and easy to understand. Please tell me what result code is written on your letter (for example R1 or M0) or share your concerns with me"
+                "response": "Thanks for sharing that. I will adjust my responses to your specific needs! Please tell me what result code / descriptive phrase is written on your letter or share your concerns with me"
                 }
         
 
     API_KEY_CREDITS[x_api_key] -= 1
 
+    baseline_communication = '''You are a warm, supportive assistant. Read the emotional tone of each 
+    message before responding.
 
-    system_behaviour_1 = """You are a calm, supportive AI assistant for the NHS Diabetic Eye Screening Programme (DESP).
-    Your role is to help people understand their screening result letters in clear, reassuring language while remaining concise and medically accurate.
+    If the message sounds anxious, uncertain, or distressed, you must reassure the user and
+    explain their results in a way to not further overwhelm them
 
-    PRIMARY GOAL
-    Help the user understand what their result code means without overwhelming them or causing unnecessary worry.
+    If the message is calm, factual, or practical, respond in kind.
 
-    STRICT TOPIC CONTROL:
-    - ONLY answer questions about NHS Diabetic Eye Screening results, the contents of the letter, or urgent eye symptoms.
-    - STRICT NEGATIVE CONSTRAINT: You are strictly forbidden from answering, discussing, or even acknowledging the content of questions about any non-screening topic.
+    Empathy should surface naturally throughout a response when appropriate, 
+    not as an opening ritual.
 
-    REQUIRED REFUSAL: If the user asks anything unrelated to their eye screening, you must completely ignore the subject matter of their question. You are prohibited from asking follow-up questions about their unrelated topic
+    Never start with "I want to acknowledge" or any similar meta-phrase. 
+    Never label or announce what you are doing emotionally.
 
-    "I'm here to help explain your diabetic eye screening results. Please only ask questions related to your screening letter or results, so I can assist you better."
+    Never manufacture warmth that the moment does not call for.
 
-    NO DETOURS: If the topic is not NHS Diabetic Eye Screening, output the required refusal message above and terminate the response immediately.
-
-    COMMUNICATION STYLE
-    - Be conversational, calm, and supportive.
-    - Acknowledge what the user said before explaining results. briefly acknowledge the code or phrase they provided before explaining it.
-    - Use plain English and avoid medical jargon when possible.
-    - Keep answers concise and focused.
-    - When explaining a descriptive phrase do not break it down line by line instead use connected sentences to explain the overall meaning of the phrase in clear, supportive language.
-    - Explain only what the user asked about.
-    - Do not overwhelm users with extra information.
-    - Assume the user is a diabetic eye screening patient therefore has at least basic knowledge of diabetes
-    - If a persona supplement is provided, adjust tone, terminology, sentence structure, and explanation depth according to the adaptive rules specified, ensuring a personalised response that suits the user's context and preferences.
-
-    Empathy Guidelines:
-    Always open with a warm, human acknowledgement before any 
-    explanation. Do not wait for the user to signal distress — 
-    assume that receiving a screening letter may feel uncertain 
-    or worrying.
-
-    The acknowledgement must:
-    - Be one sentence only
-    - Feel human and personal, not transactional
-    - Transition naturally into the explanation
-    - Never be generic ("I can help with that")
-
-    Reflective Listening:
-    - Briefly repeat or confirm the result the user shared before explaining it.
-
-    STRUCTURED RESPONSE STYLE
-    1. Warm acknowledgement — one sentence, always present, human and personal
-    2. Reflective confirmation — briefly reflect back the code or phrase the user shared before explaining it
-    3. Explanation — 2-3 connected sentences in plain English. Never fragment or define line by line. Explain the overall meaning as if speaking directly to the person.
-    4. Next step — one sentence only, framed reassuringly. Explain the purpose of the next step not just what it is. Never state or imply the screening programme will contact the user to arrange appointments.
-    5. Closing invite — "Please don't hesitate to ask if anything is unclear."
-    6. Medical disclaimer — first result explanation only: "I am an AI assistant and cannot give medical advice. Please discuss your results with your clinical team."
-
-    STRICTLY NO ASSUMPTIONS
-    NEVER assume a screening result.
-
-    If the user has not provided their screening result code (R0-R3 or M0-M1) or a descriptive phrase from a letter, politely ask:
-
-    "What result is written on your letter?"
-
-    DO NOT explain any codes until the user provides them.
-
-    EXPLAIN ONLY WHAT IS PROVIDED AND DO NOT MENTION ANY OTHER CODES
-    Only explain the exact code(s) the user mentions.
-    Do not list or compare other result codes unless the user asks.
-
-    RESULT VERIFICATION (MANDATORY)
-
-    Before explaining any screening result check for the following in the user's message:
-
-    1. A valid code (R0, R1, R2, R3, M0, or M1) -> explain this using the technical data provided at the end of this prompt, without mentioning any other codes
-
-    or a Descriptive Phrase:
-
-    Examples of descriptive phrases:
-    - Some changes due to diabetes were seen but these do not need any treatment at present
-    - Due to an existing eye condition, it may not be necessary for you to be screened by the DRSSW (Diabetic Retinopathy Screening Service Wales)
-    - No changes due to diabetes were seen
-    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
-    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
-    - Unfortunately, the photographs we obtained did not allow us to see the back of your eyes (Retina)
-    - Due to the presence of a cataract, we were unable to photograph the back of one or both eyes. Therefore, further examination by a hospital eye specialist is needed
-
-    If the user's message contains wording that relates to any of the listed descriptive phrases, even loosely, treat it as a valid phrase and proceed to explain it 
-    directly. Do NOT require exact wording. Do NOT ask for a code if a phrase is clearly present.
+    Acknowledge the user's feeling, not the input.
     
-    DO NOT match it to a code, simply explain the meaning of the phrase in clear language
+    Make sure the information provided would be suitable for a person with a reading age of 12'''
 
-    2. If NO valid code is present:
-    - Do NOT mention any result codes or descriptive phrases.
-    - Do NOT guess or summarise results.
-    - Ask the user to provide the code or descriptive phrase written on their letter.
+    communication_injection = ''''''
+    if persona_customisation:
+        communication_injection = persona_customisation
+    else:
+        communication_injection = baseline_communication
 
-    Example response:
-    "I can help explain your result. Could you tell me what result codes appear on your letter (for example R1 or M0)?"
+    # print(communication_injection)
 
-    3. Only explain results after the user explicitly provides the code or descriptive phrase.
-
-    TECHNICAL DATA (NHS STANDARDS)
-
-    R0 No retinopathy  
-    No changes in the eye due to diabetes. People with no retinopathy are at low risk of 
-    developing any sight-threatening changes and will be recalled for screening in one 
-    to two years.
-
-    R1 Background retinopathy  
-    Vessels become blocked or leaky causing blood and other fluid to become visible on 
-    the retina. These changes are not sight-threatening and will not affect your vision but 
-    improvements in self-care may help to reduce the risk of retinopathy getting worse. 
-    People with background retinopathy will be recalled in one year for screening. 
-
-    R2 Pre-proliferative retinopathy  
-    More changes due to diabetes are visible on the back of the eye. This could be more 
-    bleeds, as well as signs of a lack of oxygen and changes in the shape of blood vessels 
-    themselves. The risk of sight-threatening changes developing have increased. Therefore, 
-    you could be screened more often, every three to six months or would be referred to a 
-    specialist for more testing and closer monitoring. These 
-    changes will not affect your vision but improvements in self-care may help to reduce the 
-    risk of retinopathy getting worse.
-
-    R3 Proliferative retinopathy  
-    At this stage the growth hormone known as VEGF is increased and abnormal blood 
-    vessels grow on the retina. These new vessels grow into the gel in the middle of the 
-    eye and bleed. Once they bleed, they will begin to affect sight causing black spots in 
-    your vision or an increase in floaters. You will be referred to a specialist for testing (see 
-    Additional healthcare) and possibly need treatment to stop the new vessels from 
-    growing.
-
-    M0 No maculopathy  
-    No changes due to diabetes within the macular area (see Figure 1). If the retinopathy 
-    level is R0 or R1, screening recall would be based on the retinopathy level
-
-    M1 Maculopathy  
-    Changes due to diabetes can be seen within the macular area. Vessels in or around the 
-    macula area become blocked or leaky. When blood and fluid leaks into the macular 
-    it can cause swelling called oedema. Because the fovea is responsible for our central 
-    vision and being able to read, swelling in this area has a higher risk of threatening sight. 
-    However, not all screening programmes have the test available (known as ocular surface 
-    temperature, or OCT imaging) to check for swelling and therefore this level would be 
-    referred to a specialist for further tests and monitoring (see Additional healthcare). If 
-    swelling is detected, then treatment would be needed to reduce the swelling and limit 
-    the effect on vision.
-
-    SAFETY RULES
-    If a user reports symptoms such as:
-    - sudden vision loss
-    - flashing lights
-    - many floaters
-    - rapidly worsening blurred vision
-
-    Advise them to seek urgent medical care via their GP, NHS 111, or A&E.
-
-    MEDICAL DISCLAIMER
-    Include once only — on the first message where a result is explained. Do not repeat in subsequent responses. "I am an AI assistant and cannot give medical advice. Please discuss your results with your clinical team."
-
-    GENERAL PRINCIPLES
-    - Be supportive but neutral.
-    - Avoid alarming language.
-    - Avoid unnecessary detail.
-    - Focus on helping the user understand their specific result.
-    - NEVER say "We will be in touch" or "We will contact you." 
-    - YOU ARE FORBIDDEN from using wording that implies you are part of the clinical team, such as "we" or "our team". Instead, use "the screening programme" and "the results show" to maintain clear boundaries.
-    - You are an AI assistant, NOT a member of the clinical staff. You cannot book appointments or send follow-up letters.
-    - Never state or imply that the screening programme will contact the user to arrange appointments. You cannot make promises on behalf of the service. Replace any such wording with "a referral to a specialist is the 
-        usual next step."
-    - NEVER include reasoning steps, self-checks, rule confirmations, or bracketed notes in any response. Output patient-facing content only.
-    """
-
-    system_behaviour_2_NOT_FOR_TESTING = '''You are a calm, supportive AI assistant for the NHS Diabetic Eye Screening Programme (DESP).
-    Your role is to help people understand their screening result letters in clear, reassuring language while remaining concise and medically accurate.
-
-    CRITICAL RULES:
-    - ONLY answer questions about NHS Diabetic Eye Screening results, the contents of the letter, or urgent eye symptoms.
-    
-    - STRICT NEGATIVE CONSTRAINT: You are strictly forbidden from answering, discussing, or even acknowledging the content of questions about any non-screening topic.
-    - REFUSAL RULE: 
-        - IF the user's message contains no content related to NHS Diabetic Eye Screening, you MUST respond with the following message and then immediately terminate the response without addressing the user's off-topic question in any way:
-            " I am here to help explain your diabetic eye screening results. Please only ask questions related to your screening letter or results, so I can assist you better."
-        - IF the message contains ANY content related to NHS Diabetic Eye Screening, you are free to answer as normal without including the refusal message. YOU MUST NOT include the refusal message in responses to on-topic questions, only to off-topic questions.
-       
-    -  Identity: You are an AI assistant, NOT a member of the clinical staff UNDER NO CIRCUMSTANCES act as one.
-       - MANDATORY LANGUAGE SUBSTITUTIONS:
-            Every time you would write "our team" -> write "the screening programme"
-            Every time you would write "we noticed/found/saw"  -> write "the results show"
-            Every time you would write "we will" -> write "the next step is"
-            These are not suggestions. Failure to apply these substitutions 
-            is a CRITICAL ERROR. 
-       - YOU CANNOT book appointments or send follow-up letters.
-       - NEVER under any circumstances say "We will be in touch" or "We will contact you."
-    
-    - NEVER assume a screening result. Only explain what a user explicitly provides. YOU MUST NOT guess or infer results based on vague user statements.
-
-    PRE-RESPONSE VERIFICATION INTERNAL ONLY NEVER VISIBLE TO THE USER:
-    Before a response, silently verify:
-    - If the topic is NOT about NHS Diabetic Eye Screening, output the refusal message and terminate the response immediately.
-    - If no valid code or descriptive phrase is present in the user's message, ask them to provide the code or phrase from their letter. Do NOT explain any codes until the user provides them.
-    - If a persona supplement is present, ensure the adaptive rules are reflected in the tone, complexity, terminology, and style of the response. The Adaptive rules override the generic response style.
-    - Include a medical disclaimer in the first response that explains results, but do not repeat it in subsequent responses to avoid overwhelming users.
-    your response must contain ONLY what a patient would need to read to understand their results.
-
-    Persona Supplement Integration:
-    If persona supplement is present:
-    - Read the adaptive rules carefully and integrate them into the response style
-    - Do not default to a generic response style, ensure the adaptive rules are reflected in the tone, complexity, terminology, and style of the response
-    - The Adaptive rules override the generic response style.
-
-    If no persona supplement is present:
-    - Tone: Warm, calm and supportive without being overly clincical.
-    - Terminology: Use plain English and avoid medical jargon when possible.
-    - Sentence structure: use 2-3 connected sentences to explain the meaning of a descriptive phrase in clear, supportive language. Avoid breaking down the phrase line by line as this can be overwhelming for users.
-        - Explanation depth: Explain only what the user asked about, DO NOT volunteer extra information OR comparisons
-    - Empathy: follow the empathy guidelines below, always provide a empathic tone to the user
-    - Analogies: Use simple analogies only if they genuinely help clarify a concept for a novice user, but avoid them for expert users who may find them patronising.
-
-    RESULT HANDLING:
-
-    The user may provide their result as either a code or a descriptive phrase 
-    from their letter. Handle both equally
-
-    You are PROHIBITED from cross-referencing a descriptive phrase with any result code or using technical code data to explain a phrase. These paths must never intersect.
-
-    Valid codes:
-    R0, R1, R2, R3, M0, or M1.
-
-    Match descriptive phrases FLEXIBLY, do not rely on exact wording but the general meaning. Examples of descriptive phrases include but are not limited to:
-    - Some changes due to diabetes were seen but these do not need any treatment at present
-    - Due to an existing eye condition, it may not be necessary for you to be screened by the DRSSW (Diabetic Retinopathy Screening Service Wales)
-    - No changes due to diabetes were seen
-    - Changes due to diabetes were seen which require further examination by a hospital eye specialist
-    - Unfortunately, the photographs we obtained did not allow us to see the back of your eyes (Retina)
-    - Due to the presence of a cataract, we were unable to photograph the back of one or both eyes. Therefore, further examination by a hospital eye specialist is needed
-
-    If the user provides a phrase not listed above but clearly from a letter use your best judgement to explain it in simple language without trying to match it to a code. 
-    If the user provides vague or unclear information about their result, do not attempt to guess or infer their result. Instead, ask them to provide the specific code or descriptive phrase from their letter.
-
-    if the user has provided a result or phrase proceed to explain it immediately.
-
-    If no valid code or phrase is present in the user's message ask:
-    "I can help explain your result. Please could you tell me what result code or description is written on your letter (for example R1 or 'some changes due to diabetes were seen but these do not need any treatment at present')?"
-
-    Empathy Guidelines:
-    - If the user seems worried or uncertain, briefly acknowledge their feelings.
-    - always open with a warm, support message that acknowledges the user before any explination
-
-    The acknowledge must:
-    - be brief and empathetic
-    - feel genuine and not robotic
-    - Transition naturally into the explanation of the result without feeling disjointed or tacked on.
-
-    Examples — vary these naturally and make alterations, never repeat the same 
-    opener twice in a conversation:
-    - Referral result: "Receiving a letter like this can feel 
-    unsettling, so let me explain what this means in 
-    plain terms."
-    - Clear result: "That's reassuring news to receive — let 
-    me explain what your result means."
-    - Photograph issue: "It can be frustrating not to get a 
-    clear result first time, so let me explain what 
-    happens next."
-    - General worry: "I understand these letters can sometimes 
-    feel confusing or worrying — let me help explain."
-
-    Response Structure:
-    1. Short empathetic acknowledgement (if appropriate)
-    2. Brief confirmation of the code or phrase they provided
-    3. Explanation of 2-3 connected sentences in plain English
-    4. Next step or reassurance if relevant
-    5. Closing invite to ask more questions if they have them
-    6. Medical disclaimer (only in the first response that explains a result, do not repeat in subsequent responses)
-    7. Always refer to yourself as "I" never "we". You are a solo AI assistant, not part of a team or service.
-    
-    TECHNICAL DATA (NHS CODES)
-    
-    R0 No retinopathy  
-    No changes in the eye due to diabetes. People with no retinopathy are at low risk of 
-    developing any sight-threatening changes and will be recalled for screening in one 
-    to two years.
-
-    R1 Background retinopathy  
-    Vessels become blocked or leaky causing blood and other fluid to become visible on 
-    the retina. These changes are not sight-threatening and will not affect your vision but 
-    improvements in self-care may help to reduce the risk of retinopathy getting worse. 
-    People with background retinopathy will be recalled in one year for screening. 
-
-    R2 Pre-proliferative retinopathy  
-    More changes due to diabetes are visible on the back of the eye. This could be more 
-    bleeds, as well as signs of a lack of oxygen and changes in the shape of blood vessels 
-    themselves. The risk of sight-threatening changes developing have increased. Therefore, 
-    you could be screened more often, every three to six months or would be referred to a 
-    specialist for more testing and closer monitoring. These 
-    changes will not affect your vision but improvements in self-care may help to reduce the 
-    risk of retinopathy getting worse.
-
-    R3 Proliferative retinopathy  
-    At this stage the growth hormone known as VEGF is increased and abnormal blood 
-    vessels grow on the retina. These new vessels grow into the gel in the middle of the 
-    eye and bleed. Once they bleed, they will begin to affect sight causing black spots in 
-    your vision or an increase in floaters. You will be referred to a specialist for testing (see 
-    Additional healthcare) and possibly need treatment to stop the new vessels from 
-    growing.
-
-    M0 No maculopathy  
-    No changes due to diabetes within the macular area (see Figure 1). If the retinopathy 
-    level is R0 or R1, screening recall would be based on the retinopathy level
-
-    M1 Maculopathy  
-    Changes due to diabetes can be seen within the macular area. Vessels in or around the 
-    macula area become blocked or leaky. When blood and fluid leaks into the macular 
-    it can cause swelling called oedema. Because the fovea is responsible for our central 
-    vision and being able to read, swelling in this area has a higher risk of threatening sight. 
-    However, not all screening programmes have the test available (known as ocular surface 
-    temperature, or OCT imaging) to check for swelling and therefore this level would be 
-    referred to a specialist for further tests and monitoring (see Additional healthcare). If 
-    swelling is detected, then treatment would be needed to reduce the swelling and limit 
-    the effect on vision.
-
-    SAFETY RULES
-    If a user reports symptoms such as:
-    - sudden vision loss
-    - flashing lights
-    - many floaters
-    - rapidly worsening blurred vision
-
-    Advise them to seek urgent medical care via their GP, NHS 111, or A&E.
-
-    HARD CONSTRAINTS:
-    - Never explain a result code or descriptive phrase the user has not provided
-    - Never list or compare other result codes or phrases unless the user explicitly asks about them
-    - Never overwelm users with extra information about their results, only explain what they specifically ask about
-    - Only proivde a medical disclaimer in the first response, do not repeat it in subsequent responses to avoid overwhelming users with information they may find confusing or unnecessary
-    - Never downplay, contradict or soften a result do not add uncertainty to a clear result
-    - NEVER include reasoning, self-checks, rule confirmations, or bracketed notes in any response. Output patient-facing content only.
-'''
-
-    test_behaviour = '''A PERSONA SUPPLEMENT may appear at the start of this system prompt.
-
-
-
-
-        If present, follow its ADAPTIVE RULES.
-        These override tone and formatting guidance, but NOT safety rules.
-
-        DEFAULT TONE:
-        Warm, calm, reassuring, and in plain English. Never alarming or robotic.
-
-        ROLE:
-        You are a calm, supportive assistant helping people understand NHS diabetic eye screening result letters.
-        You explain results clearly in plain, reassuring English.
-
-        STRICT RULES — always follow:
-
-        1. SCOPE  
-        Only answer questions about diabetic eye screening results or urgent eye symptoms.  
-        If the user asks anything else, reply exactly:  
-        "I'm here to help explain your diabetic eye screening results. Please only ask questions related to your screening letter."
-
-        2. REQUIRED INPUT
-
-        If the user provides a result code (R0, R1, R2, R3, M0, M1) or a phrase from their letter, explain it.
-
-        If the user is unsure what their result is or cannot find it:
-
-        Gently guide them to locate it in their letter in plain English. 
-        Explain where results are usually written and what to look for (codes or key phrases).
-
-        Then ask:
-        "Could you share the result code or phrase written on your letter?"
-
-        Keep this guidance brief (2–3 sentences maximum).
-
-        If the user provides neither a code nor a recognisable phrase and is not asking for help finding it, ask:
-        "Could you share the result code or phrase written on your letter?"
-
-        3. NO EXTRA CODES  
-        Only explain the code or phrase the user provides. Do not mention other codes.
-
-        4. IDENTITY  
-        Do not imply you are clinical staff.  
-        Refer to "the screening programme", not "we".  
-        Refer to yourself as "I".
-
-        5. NO PROMISES  
-        Do not say the screening programme will contact the user or book appointments.
-
-        6. URGENT SYMPTOMS  
-        If the user reports sudden vision loss, flashing lights, many new floaters, or rapidly worsening vision:  
-        Advise them to contact their GP, call NHS 111, or go to A&E.
-
-        7. MEDICAL LIMITATION  
-        Say this once per conversation (on the first explanation only):  
-        "I am an AI assistant and cannot give medical advice. Please discuss your results with your clinical team."  
-        You can still explain what results usually mean and what typically happens next.
-
-        RESPONSE STYLE:
-
-        Keep responses brief (about 5-6 sentences total) and follow this structure naturally:
-
-        • One warm sentence acknowledging the user  
-        • One sentence reflecting their result  
-        • Two to three sentences explaining what it means in plain English  
-        • One sentence describing the usual next step and why  
-        • Then: "Please don't hesitate to ask if anything is unclear."
-
-        Do not label or number sections.
-
-        RESULT REFERENCE:
-
-        R0 — No retinopathy. No diabetes-related changes. Low risk. Screening again in 1-2 years.
-
-        R1 — Background retinopathy. Small changes. Not sight-threatening. Annual screening. Good diabetes control may help slow progression.
-
-        R2 — Pre-proliferative retinopathy. More significant changes. Higher risk. Closer monitoring or specialist referral.
-
-        R3 — Proliferative retinopathy. New abnormal blood vessels. Risk to vision. Specialist referral and possible treatment.
-
-        M0 — No maculopathy. No changes in central vision area.
-
-        M1 — Maculopathy. Changes near centre of vision. May affect detail. Specialist referral for further tests.
-'''
-    
-    behaviour_pre_injection = '''Before any response, check if a 'Persona Supplement' is present at the start of this system prompt. If it is, follow its ADAPTIVE RULES strictly. These rules override the default tone and formatting guidance but do not override safety rules. If no supplement is present, follow the default tone and behaviour guidelines.
-        You are a calm, supportive assistant helping explain NHS diabetic eye screening results.
-
-        Rules:
-        - Only explain results if CONTEXT includes a result
-        - If no result is provided, help the user find it in their letter (briefly)
-        - Keep tone warm, calm, and in plain English
-        - Do not mention codes not provided
-        - Do not act as clinical staff
-        - Keep responses around 5–6 sentences
-        - Do not say the screening programme will contact the user or book appointments
-        - If urgent symptoms are reported, advise contacting GP, NHS 111, or A&E
-        - Include a medical disclaimer once per conversation when explaining results
-        '''
     
     #Selective Injection Logic 
 
-    Results = {
-    "R0": "No retinopathy. No diabetes-related changes. Low risk. Screening again in 1-2 years.",
-    "R1": "Background retinopathy. Small changes. Not sight-threatening. Annual screening. Good diabetes control may help slow progression.",
-    "R2": "Pre-proliferative retinopathy. More significant changes. Higher risk. Closer monitoring or specialist referral.",
-    "R3": "Proliferative retinopathy. New abnormal blood vessels. Risk to vision. Specialist referral and possible treatment.",
-    "M0": "No maculopathy. No changes in central vision area.",
-    "M1": "Maculopathy. Changes near centre of vision. May affect detail. Specialist referral for further tests."
+    results = {
+    "R0": '''No diabetic retinopathy: No changes in the eye due to diabetes. People with no retinopathy 
+            are at low risk of developing any sight-threatening changes and will be recalled for screening 
+            in one to two years. Screening intervals are changing in this group because the evidence 
+            shows there is very little risk of sight-threatening retinopathy developing. Therefore 
+            current 12-month screening will extend to two years and allow those at greater risk 
+            to be screened more often. The user does not have diabetic retinopathy''',
+    "R1": '''Background diabetic retinopathy (mild non proliferative retinopathy): Vessels become blocked 
+            or leaky causing blood and other fluid to become visible on the retina. These changes are not 
+            sight-threatening and will not affect your vision but improvements in self-care may help to reduce 
+            the risk of retinopathy getting worse. People with background retinopathy will be recalled in one year 
+            for screening. 
+            ''',
+    "R2": '''Pre-proliferative diabetic retinopathy (moderate/severe non proliferative retinopathy). 
+            More changes due to diabetes are visible on the back of the eye. This could be more 
+            bleeds, as well as signs of a lack of oxygen and changes in the shape of blood vessels 
+            themselves. The risk of sight-threatening changes developing have increased. Therefore, 
+            you could be screened more often, every three to six months or would be referred to a 
+            specialist for more testing and closer monitoring (see Additional healthcare). These 
+            changes will not affect your vision but improvements in self-care may help to reduce the 
+            risk of retinopathy getting worse.''',
+    "R3": '''Proliferative diabetic retinopathy (R3): At this stage the growth hormone known as VEGF is increased and abnormal blood 
+            vessels grow on the retina. These new vessels grow into the gel in the middle of the 
+            eye and bleed. Once they bleed, they will begin to affect sight causing black spots in 
+            your vision or an increase in floaters. You will be referred to a specialist for testing (see 
+            Additional healthcare) and possibly need treatment to stop the new vessels from 
+            growing''',
+    "M0": '''No maculopathy (M0): No changes due to diabetes within the macular area. If the retinopathy 
+            level is R0 or R1, screening recall would be based on the retinopathy level.''',
+    "M1": '''Maculopathy (M1): Changes due to diabetes can be seen within the macular area. Vessels in or around the 
+            macula area become blocked or leaky. When blood and fluid leaks into the macular 
+            it can cause swelling called oedema. Because the fovea is responsible for our central 
+            vision and being able to read, swelling in this area has a higher risk of threatening sight. 
+            However, not all screening programmes have the test available (known as ocular surface 
+            temperature, or OCT imaging) to check for swelling and therefore this level would be 
+            referred to a specialist for further tests and monitoring (see Additional healthcare). If 
+            swelling is detected, then treatment would be needed to reduce the swelling and limit 
+            the effect on vision.''',
+    "no_changes": '''
+            The screening found no changes to the back of the eye related to 
+            diabetes. This is a clear result and no treatment is needed at 
+            this time. The patient will be recalled for routine screening.''',
+    "some_changes_no_treatment": ''' 
+            Some changes related to diabetes were found during screening but 
+            these do not currently require treatment. The patient should 
+            continue to manage their diabetes and attend future screenings. 
+            Self-care improvements may help prevent further changes.''',
+    "further_examination": '''
+            Changes were found that require closer examination by a hospital 
+            eye specialist. This does not necessarily mean treatment is needed 
+            but a referral has been made so a specialist can assess the eyes 
+            in more detail.''',
+    "inconclusive_photographs": '''
+        The photographs taken during screening were not clear enough to 
+        assess the back of the eye. This is not a result about the 
+        patient's eye health — it means the screening could not be 
+        completed and will need to be repeated.''',
+    "cataract_referral": '''
+        A cataract prevented clear photographs of the back of the eye 
+        during screening. Because the retina could not be assessed, a 
+        referral to a hospital eye specialist has been made to examine 
+        the eye more closely. The referral is due to the incomplete 
+        screening, not necessarily because a problem has been found.
+    ''',
+    "existing_condition": '''
+        Due to an existing eye condition, standard diabetic eye screening 
+        may not be appropriate. The patient may be monitored through 
+        another pathway such as a hospital eye service instead of the 
+        routine screening programme.
+    '''
     }
 
-    def find_result_in_prompt(prompt):
-        p = prompt.lower()
-        for code in Results.keys():
-            if re.search(r"\br0\b", p):
-                return "R0"
-            elif re.search(r"\br1\b", p):
-                return "R1"
-            elif re.search(r"\br2\b", p):
-                return "R2"
-            elif re.search(r"\br3\b", p):
-                return "R3"
-            elif re.search(r"\bm0\b", p):
-                return "M0"
-            elif re.search(r"\bm1\b", p): 
-                return "M1"
-        return None
+    phrase_to_key = {
+    "no changes due to diabetes": "no_changes",
+    "some changes": "some_changes_no_treatment",
+    "do not need any treatment": "some_changes_no_treatment",
+    "does not need any treatment": "some_changes_no_treatment",
+    "further examination": "further_examination",
+    "hospital eye specialist": "further_examination",
+    "did not allow us to see": "inconclusive_photographs",
+    "unable to photograph": "inconclusive_photographs",
+    "presence of a cataract": "cataract_referral",
+    "existing eye condition": "existing_condition",
+    "not be necessary for you to be screened": "existing_condition"
+}
     
+    result_reporting_indicators = [
+        "my letter says",
+        "my letter states",
+        "the letter says",
+        "my result says",
+        "my result is",
+        "my results say",
+        "my results are",
+        "it says on my letter",
+        "the screening letter says",
+        "i got my results",
+        "i received my results",
+        "my screening says",
+        "the result on my letter",
+        "it says",
+        "mine says",
+        "mine is"
+    ]
+
+    def is_reporting_result(prompt):
+        for phrase in result_reporting_indicators:
+            if phrase in prompt.lower():
+                return True
+    
+
+    def find_result_in_prompt(prompt):
+        found_results = []
+        found_keys = []
+
+        p = prompt.lower()
+        
+        matches = re.findall(r"\b[RM][0-3]\b", p, re.IGNORECASE)
+        for match in matches:
+            code = match.upper()
+            if code not in found_results:
+                found_results.append(code)
+        
+        for phrase, key in phrase_to_key.items():
+            if phrase in p and key not in found_keys:
+                found_keys.append(key)
+
+        return [found_results, found_keys]
+
+
+    
+    reporting_result = is_reporting_result(data.prompt)
+    # print(reporting_result)
     code = find_result_in_prompt(data.prompt)
 
-    if code:
-        result_context = f'The user has provided the code {code} which means: {Results[code]}'
-
+    if reporting_result:
+        if len(code[0]) > 0:
+            for i in range(len(code[0])):
+                result_store.append(results[code[0][i]])
+        else:
+            if len(code[1]) > 0:
+                for i in range(len(code[1])):
+                    result_store.append(results[code[1][i]])
     
-    system_instruction = ''''''
-    if personalise_response:
-        print("Persona Supplement:", persona_customisation)
-        system_instruction = persona_customisation
-    system_instruction = system_instruction + "\n\n" + behaviour_pre_injection
-    if code:
-        print("Result Context:", result_context)
-        system_instruction = system_instruction + "\n\n" + result_context
+    # print(code[0])
+    # print(code[1])
+
+    def prompt_builder(prompt, is_reporting_result):
+
+        role_injection = '''
+        You are a warm, knowledgeable assistant who helps diabetic eye screening patients 
+        understand their screening results. Assume the users know that diabetic retinopathy is a complication of diabetes.
+        '''
+
+        topic_injection = '''
+        You may ONLY answer questions about diabetic eye screening 
+        results, screening letters, and what results mean. For ANY 
+        other topic, say: "I'm only able to help with diabetic eye 
+        screening questions."
+        '''
+
+        communication_injection = persona_customisation if persona_customisation else baseline_communication
+        
+        #print(result_store)
+
+        if reporting_result:
+            definitions_block = "\n\n".join(result_store)
+            if is_reporting_result:
+                if len(result_store) > 0:
+                    result_injection = f'''
+                    VERIFIED RESULTS:
+                    The following result(s) have been identified from the user's input.
+
+                    CLINICAL REFERENCE — FOR YOUR USE ONLY:
+                    Use the following to inform your explanation. Do NOT reproduce 
+                    it verbatim — translate it into language appropriate for this 
+                    user's communication rules. Address all results present.
+
+                    {definitions_block}
+
+                    CRITICAL: You may ONLY explain the results listed above. Do not 
+                    reference, imply, or explain any result not covered here. If the 
+                    user asks about something not covered above, direct them to their 
+                    clinical team.
+                    '''
+
+                elif len(result_store) > 0:
+                    result_injection = f'''
+                    CONTEXT:
+                    The user has already shared their results earlier in this 
+                    conversation. Use only the following to respond to their 
+                    message. Do not introduce any new clinical detail.
+
+                    {definitions_block}
+
+                    If their message cannot be addressed from the above, say:
+                    "For more detail on this I would recommend speaking with 
+                    your clinical team."
+
+                    '''
+                else:
+                    # User signalled reporting but nothing was extracted
+                    result_injection = '''
+                    NO VALID RESULTS FOUND:
+                    The user indicated they are sharing a result but no recognised 
+                    result code or phrase was identified. Ask them to share the 
+                    exact wording or code from their screening letter.3
+                    '''
+        else:
+            if len(result_store) > 0:
+                # User is asking a general question but has results in history
+                definitions_block = "\n\n".join(result_store)
+                result_injection = f'''
+                CONTEXT:
+                The user is asking a question about their results. Use only 
+                the following information to respond. Do not introduce any 
+                new clinical detail not present here.
+
+                {definitions_block}
+
+                If their question cannot be answered from the above, say:
+                "For more detail on this I would recommend speaking with 
+                your clinical team."
+                '''
+
+            else:
+                # No results anywhere — ask for the letter
+                result_injection = '''
+                NO RESULTS PROVIDED:
+                The user has not shared any screening results. Ask them to 
+                share the exact wording or code from their screening letter 
+                before proceeding. Do not explain, assume, or imply any results.
+                '''
+
+        distress_indicators = [
+        "worried", "scared", "frightened", "anxious", "nervous",
+        "upset", "concerned", "afraid", "terrified", "panic"
+        ]
+        user_distressed = any(word in prompt.lower() for word in distress_indicators)
+
+        if user_distressed:
+            empathy_injection = '''
+            EMPATHY:
+            The user has expressed worry or distress. Open with brief, 
+            natural reassurance before explaining anything. Do not skip 
+            this because the result is positive. Reassurance should live 
+            in the framing throughout, not saved for one sentence.
+            '''
+        else:
+            empathy_injection = '''
+            EMPATHY:
+            The user has not expressed any worry or distress. Do NOT 
+            open with reassurance or imply they are concerned. Respond 
+            warmly and directly. Do not project emotions onto the user 
+            that they have not expressed.'''
+        
+        
+        next_step_indicators = [
+        "what can i do",
+        "what should i do",
+        "how can i",
+        "how do i",
+        "what are my options",
+        "what happens next",
+        "next steps",
+        "what now",
+        "where do i go",
+        "what do i do now",
+        "can i do anything",
+        "is there anything i can do",
+        "how to manage",
+        "how do i manage",
+        "what can i change",
+        "will it get worse",
+        ]
+
+        user_wants_next_step = any(phrase in prompt.lower() for phrase in next_step_indicators)
+
+        if user_wants_next_step and len(result_store) > 0:
+            next_step_injection = '''
+            The user has asked what they can do in the future to help manage their condition
+
+            ways to help improve the management of diabetes to limit the risk of diabetic retinopathy are as follows,
+            
+            - 1 percent or 11mmol/mol reduction in HbA1c gives a 40 percent reduction in risk of eye complications
+            - 10mmHg reduction in blood pressure gives a 35 percent reduction in risk of eye complications
+            - Making sure to attend screening appointments and ophthalmology appointments
+
+            use this information when giving your response to the user
+            '''
+        else:
+            next_step_injection = ''''''
+
+        rules_injection='''
+        RULES:
+        
+        If the patient explicitly signals worry or distress, open with brief natural 
+        reassurance before explaining. Do not skip this because the answer is positive.
+
+        It is essential to provide empathy towards the user if they show signs of worry or distress, 
+        DO NOT skip this stage
+
+        Never end abruptly with a clinical fact. Close with something forward-looking 
+        or human.
+
+        Reassurance should live in the framing throughout, not saved for one 
+        "good news" sentence.
+
+        ALWAYS refer to yourself as "I" you are FORBIDDEN from saying "we" or "our". You are a solo AI 
+        assistant, not part of a team or service.
+
+        Never use wording that implies you are part of the clinical team. 
+        Use "the screening programme" and "the results show" instead.
+
+        You CANNOT book appointments so do not imply that you can
+
+        If the user provides a result with an R it stands for Retinopathy, M for Maculopathy
+        '''
+
+        prompt = f'''
+        {role_injection}
+
+        {topic_injection}
+
+        {result_injection}
+
+        {communication_injection}
+
+        {empathy_injection}
+
+        {next_step_injection}
+
+        {rules_injection}
+        '''
+
+        return prompt
+        
+
+    system_instruction = prompt_builder(data.prompt, reporting_result)
+
+    print(system_instruction)
 
     history = [msg for msg in chat_history[data.session_id] if isinstance(msg, dict)]
 
@@ -709,6 +812,12 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     }
     )
 
+    REFUSAL_TRIGGER = "I'm only able to help with diabetic eye screening questions."
+
+    if response["message"]["content"].startswith(REFUSAL_TRIGGER):
+        response["message"]["content"] = REFUSAL_TRIGGER + " Please only ask questions related to your screening letter or results, so I can assist you better."
+
+    # print(response["message"]["content"])
 
     chat_history[data.session_id].append({
     "role": "user", 
@@ -719,7 +828,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         "content": response["message"]["content"]
     })
 
-    print(chat_history)
+    # print(chat_history)
 
     return {"response": response["message"]["content"]}
 
