@@ -11,7 +11,7 @@ load_dotenv()
 
 # Potentially limit user credits to prevent going down rabbit hole
 # Once credits are used up, prompt to seek help from a healthcare professional
-API_KEY_CREDITS = {os.getenv("API_KEY"): 100}
+API_KEY_CREDITS = {os.getenv("API_KEY"): 10}
 
 app = FastAPI()
 
@@ -56,6 +56,10 @@ persona_customisation = ""
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
     global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation, result_store
+
+    if API_KEY_CREDITS[x_api_key] == 0:
+        return {"response": "You have reached your messages limit, please contact your healthcare provider with any further questions you may have."}
+
 
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
