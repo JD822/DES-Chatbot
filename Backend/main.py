@@ -9,8 +9,8 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-# Potentially limit user credits to prevent going down rabbit hole
-# Once credits are used up, prompt to seek help from a healthcare professional
+
+# 10 Message limit
 API_KEY_CREDITS = {os.getenv("API_KEY"): 10}
 
 app = FastAPI()
@@ -34,20 +34,23 @@ def verify_api_key(x_api_key: str = Header(None)):
     
     return x_api_key
 
-chat_history = {}
-result_store = []
-
 class Prompt(BaseModel):
     session_id: str
     prompt: str
     onboarding: bool 
 
+# Chat history and result store to give to LLM prompt
+chat_history = {}
+result_store = []
+
+# Onboarding Variables
 awaiting_personalisation_response = True
 personalise_response = False
 user_age = "Age not provided"
 vision_status = "Vision status not provided"
 literacy_level = "Literacy level not provided"
 user_experience = "Experience not provided"
+base_level = ""
 persona_customisation = ""
 
 
@@ -55,15 +58,19 @@ persona_customisation = ""
 @app.post("/generate")
 def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
-    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation, result_store
+    # Obtain Stores and Variables
+    global awaiting_personalisation_response, personalise_response, user_age, vision_status, literacy_level, user_experience, persona_customisation, result_store, base_level
 
+    # If there are no messages left return a standard message prompting to contact a professional
     if API_KEY_CREDITS[x_api_key] == 0:
         return {"response": "You have reached your messages limit, please contact your healthcare provider with any further questions you may have."}
 
 
+    # If the session id is not in chat history create a new one
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
 
+    # If Onboarding make sure all variables are at default (Data Purge)
     if data.onboarding:
         awaiting_personalisation_response = True
         personalise_response = False
@@ -73,9 +80,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         literacy_level = "Literacy level not provided"
         chat_history[data.session_id] = []
         result_store = []
+    
 
-    chat_history[data.session_id].append(data.prompt)
-
+    # If the user has not yet chose to personalise responses
     if awaiting_personalisation_response:
         awaiting_personalisation_response = False
         if data.prompt.lower() == "yes":
@@ -88,7 +95,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             awaiting_personalisation_response = True
             return {"response": "Please answer with 'Yes' or 'No' to help me personalise your experience. Do you want me to tailor my responses to you?"}
 
+    # If the user chooses to personalise code transitions to onboarding block
     if personalise_response:
+        # Gather Age
         if user_age == "Age not provided":
             user_age = data.prompt if data.prompt.isdigit() else "Age not provided"
             match = re.search(r'\d+', data.prompt)
@@ -96,6 +105,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             if match:
                 age_value = int(match.group())
                 
+                # If age is inbetween certain values accept it
                 if 12 <= age_value <= 100:
                     user_age = age_value
                     return {"response": f'''Got it, you're {user_age}. Do you have any of the following visual impairments? 
@@ -108,7 +118,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     return {"response": "Please provide an age between 12 and 100"}
             else:
                 return {"response": "Please provide a number, that way I can help you better."}
-
+            
+        # Gather user vissual impairment (if applicable)
         if vision_status == "Vision status not provided":
             vision_status = data.prompt.lower()
             if vision_status not in ["none", "colour blindness", "low vision", "light sensitivity", "screen reader user"]:
@@ -116,6 +127,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 "I can only adjust to one of those specific vision statuses currently."}
             return {"response": '''Thank you for sharing that. Now can you please tell me how long you have been a diabetic for? Please only use a number for the amount of years e.g. 0 for a new diabetic or 20 for 20 years'''}
         
+        # Gather user years of experience managing diabetes
         if user_experience == "Experience not provided":
             user_experience = data.prompt if data.prompt.isdigit() else "Age not provided"
             match = re.search(r'\d+', data.prompt)
@@ -123,17 +135,20 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             if match:
                 experience_value = int(match.group())
                 
+                # If number between certain values
                 if 0 <= experience_value <= 100:
                     user_experience = experience_value
                     return {"response": '''Lastly, please give a brief description on your knowledge on diabetic eye screening results and medical information in general, this will help me adjust my language to suit you better. You can say something like 'I have a good understanding and want detailed explanations' or 'I find medical information confusing and want simple explanations' or anything in between'''}
             else:
                 return {"response": "Please provide how many years you have been a diabetic using just a number, that way I can adjust my explanations to suit you better."}
 
+        # Gather user literacy level
         if literacy_level == "Literacy level not provided":
             literacy_level = data.prompt
             if literacy_level == "Literacy level not provided":
                 return {"response": "Please choose from the previously mentioned options, as this is a proof of concept, I can only adjust to those specific styles currently."}
             
+            # User data input to act as user side for prompt chaining response 1 (adaptive rules)
             user_data_input = f'''
             User Inputs:
             Age: {user_age}
@@ -141,8 +156,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             Years managing diabetes: {user_experience}
             Literacy: {literacy_level}
         '''
-            #print("User Data Input for Persona Supplement:", user_data_input)
+            
 
+            # Depending on the user visual impairment or age alter UI theme
             def customise_interface(age, impairment):
                 if impairment.lower() == 'colour blindness':
                     return 'colourblind friendly'
@@ -157,6 +173,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             
             theme_selection = customise_interface(user_age,vision_status)
 
+            # Get a base experience level based on user experience level 
             def experience_level_calculation(experience_level):
                 if experience_level <= 3:
                     base_level = 'novice'
@@ -168,7 +185,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
             base_level = experience_level_calculation(user_experience)
 
-
+            # Health literacy indicators
             low_indicators = [
             "confusing",
             "confused",
@@ -261,6 +278,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
 
             def literacy_level_calculation(prompt):
+                # Indexes: 0 = Low, 1 = Moderate, 2 = High
                 literacy_indicators = [0,0,0]
                 for phrase in low_indicators:
                     if phrase in prompt.lower():
@@ -272,8 +290,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     if phrase in prompt.lower():
                         literacy_indicators[2] += 1
 
+                # Find most indicators
                 max_score = max(literacy_indicators)
 
+                # Index will find the first occurence of the max score, picking applicable lowest literacy level 
                 if max_score == 0:
                     literacy = "MODERATE"
                 elif literacy_indicators.index(max_score) == 0:
@@ -286,16 +306,15 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 return literacy
         
             literacy_calculation = literacy_level_calculation(data.prompt)
-            #print(literacy_calculation)
 
+            # Apply shift based on literacy level
             if literacy_calculation == 'LOW':
                 if base_level == 'expert':
                     base_level = 'intermediate'
                 if base_level == 'intermediate':
                     base_level = 'novice'
 
-            #print(base_level)
-
+            # Reasoning examples based on base level
             reasoning_examples = {
             "novice": '''RULES:
             - TONE: Warm and encouraging. Write as if speaking to someone new to this. Never clinical, never rushed.
@@ -360,7 +379,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         
             communication_example = reasoning_examples[base_level]
 
-
+            # System instruction for the Adaptive rules creation
             prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on user data to bridge the gap between the user's context and their medical results.
 
             This user fits into the {base_level} group. The following rules 
@@ -392,6 +411,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             - Rule 5
             '''
         
+            # Generate personalised communication rules
             response = ollama.chat(
                 model="llama3.2",
                 messages=[
@@ -405,19 +425,22 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 }
             )
 
+            # Append user data to the history so the LLM has base context in future calls
             chat_history[data.session_id].append({
             "role": "user", 
             "content": user_data_input
             })
 
+            # Extract adaptive rules response
             persona_customisation = response["message"]["content"]
-            #print("Persona Customisation Instructions:", persona_customisation)
 
+            # Set text size based on user age
             if user_age > 60:
                 text_size = "20"
             else:
                 text_size = "16"
 
+            # Return message to user after customisation complete, return theme and text size to be applied automatically
             return {
                 "theme": theme_selection,
                 "text_size": text_size,
@@ -427,6 +450,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
     API_KEY_CREDITS[x_api_key] -= 1
 
+    # Append user prompt to history for conversation persistence 
+    chat_history[data.session_id].append(data.prompt)
+
+    # Baseline communication rules if the user did not personalise 
     baseline_communication = '''You are a warm, supportive assistant. Read the emotional tone of each 
     message before responding.
 
@@ -453,10 +480,12 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     else:
         communication_injection = baseline_communication
 
-    # print(communication_injection)
 
     
-    #Selective Injection Logic 
+    # Selective Injection Logic 
+
+    # Result code meanings based of leaflet letter provided
+    # With translations for descriptive phrases from older letters if that is applicable instead
 
     results = {
     "R0": '''No diabetic retinopathy: No changes in the eye due to diabetes. People with no retinopathy 
@@ -484,7 +513,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             eye and bleed. Once they bleed, they will begin to affect sight causing black spots in 
             your vision or an increase in floaters. You will be referred to a specialist for testing (see 
             Additional healthcare) and possibly need treatment to stop the new vessels from 
-            growing''',
+            growing. The user requires urgent refferal to it is important they do not delay their follow up. ''',
     "M0": '''No maculopathy (M0): No changes due to diabetes within the macular area. If the retinopathy 
             level is R0 or R1, screening recall would be based on the retinopathy level.''',
     "M1": '''Maculopathy (M1): Changes due to diabetes can be seen within the macular area. Vessels in or around the 
@@ -530,6 +559,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     '''
     }
 
+    # Checking for specific phrases from letter
+
     phrase_to_key = {
     "no changes due to diabetes": "no_changes",
     "some changes": "some_changes_no_treatment",
@@ -544,6 +575,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     "not be necessary for you to be screened": "existing_condition"
 }
     
+    # Checking for user phrase to indicate reporting a result
+
     result_reporting_indicators = [
         "my letter says",
         "my letter states",
@@ -563,6 +596,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         "mine is"
     ]
 
+    # If one of the phrases is found the user is reporting a result
+
     def is_reporting_result(prompt):
         for phrase in result_reporting_indicators:
             if phrase in prompt.lower():
@@ -575,25 +610,31 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
         p = prompt.lower()
         
+        # Regex to find results in prompt if reporting a result 
+
         matches = re.findall(r"\b[RM][0-3]\b", p, re.IGNORECASE)
         for match in matches:
             code = match.upper()
             if code not in found_results:
                 found_results.append(code)
         
+        # Looks for each potential phrase in a users message if a descriptive phrase is mentioned
         for phrase, key in phrase_to_key.items():
             if phrase in p and key not in found_keys:
                 found_keys.append(key)
 
+        # Return findings
         return [found_results, found_keys]
 
 
     
-    reporting_result = is_reporting_result(data.prompt)
-    # print(reporting_result)
-    code = find_result_in_prompt(data.prompt)
+    reporting_result = is_reporting_result(data.prompt) 
+
+    # code = find_result_in_prompt(data.prompt)
 
     if reporting_result:
+        code = find_result_in_prompt(data.prompt)
+        # Prefer coded results over descriptive phrases
         if len(code[0]) > 0:
             for i in range(len(code[0])):
                 result_store.append(results[code[0][i]])
@@ -602,8 +643,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 for i in range(len(code[1])):
                     result_store.append(results[code[1][i]])
     
-    # print(code[0])
-    # print(code[1])
 
     def prompt_builder(prompt, is_reporting_result):
 
@@ -621,7 +660,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
         communication_injection = persona_customisation if persona_customisation else baseline_communication
         
-        #print(result_store)
 
         if reporting_result:
             definitions_block = "\n\n".join(result_store)
@@ -642,6 +680,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     reference, imply, or explain any result not covered here. If the 
                     user asks about something not covered above, direct them to their 
                     clinical team.
+
+                    Response Style: Always be concise. Limit responses to 2 paragraphs maximum.
+                    Neutrality: Do not praise the patient or assume they are being "proactive.
                     '''
 
                 elif len(result_store) > 0:
@@ -664,7 +705,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     NO VALID RESULTS FOUND:
                     The user indicated they are sharing a result but no recognised 
                     result code or phrase was identified. Ask them to share the 
-                    exact wording or code from their screening letter.3
+                    exact wording or code from their screening letter.
                     '''
         else:
             if len(result_store) > 0:
@@ -775,6 +816,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         You CANNOT book appointments so do not imply that you can
 
         If the user provides a result with an R it stands for Retinopathy, M for Maculopathy
+
+        DO NOT down play a serious result
+
+        "NEVER use the following phrase or variations of it: 'We've included information on how to book an appointment in your letter, and our team will be happy to support you through the process.'"
         '''
 
         prompt = f'''
