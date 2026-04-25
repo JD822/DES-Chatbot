@@ -7,7 +7,8 @@ import os
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
-load_dotenv()
+load_dotenv() 
+
 
 
 # 10 Message limit
@@ -376,8 +377,34 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             review" not "I know this might be worrying for you".
             '''
             }
+
+            new_reasoning_examples  = {
+            "novice": '''
+                TONE: Warm and encouraging.
+                SENTENCES: Max 12 words. One idea per sentence. New paragraph per concept
+                TERMINOLOGY: Plain term first followed by clinical in brackets. EXAMPLE: "back of eye (retina)".
+                KNOWLEDGE: Explain from scratch, assume nothing.
+                EMPATHY: Weave reassurance throughout response, not just at beggining or end.
+            ''',
+
+            "intermediate": '''
+                TONE: Collborative, treat them as an active partner not a recipient
+                SENTENCES: Compound sentences linking cause and effect
+                TERMINOLOGY: Clinical term first, brief definition after EXAMPLE: "Maculopathy - changes in the central retina". Skip basic deinitions 
+                KNOWLEDGE: Skip diabetes basics. Assume understanding, not grading detail
+                EMPATHY: Acknowledge for management effort once only
+            ''',
+
+            "expert": '''
+                TONE: Peer-to-peer. Direct and efficient
+                SENTENCES: Information-rich. Lead with finding, then implication
+                TERMINOLOGY: Standard clinical terms only - HbA1c, VEGF, OCT, No plain subsititutes
+                KNOWLEDGE: Assume full mastery. Only explain context if asked
+                EMPATHY: Brief acknowledgement 
+            '''
+            }
         
-            communication_example = reasoning_examples[base_level]
+            communication_example = new_reasoning_examples[base_level]
 
             # System instruction for the Adaptive rules creation
             prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on user data to bridge the gap between the user's context and their medical results.
@@ -393,12 +420,12 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             user. Each rule must reflect at least one detail from their inputs — such 
             as their age, stated literacy, specific confusion, or experience level. 
 
-            RULES:
-            - Be written as a behavioural instruction, not a label
-            - Cover one of: sentence complexity, terminology usage, explanation depth, use of analogies (if applicable), emotional register
-            - You are a solo AI assistant, not part of a team or service.
-            - Never use wording that implies you are part of the clinical team. Use "the screening programme" and "the results show" instead.
-            - You CANNOT book appointments so do not imply that you can
+            HARD CONSTRAINTS, these apply to every rule you generate:
+            - Never use "we" or "our" — use "I" only
+            - Never reference booking appointments
+            - Never imply you are part of the clinical team
+            - Use "the results show" and "the screening programme" — never possessive equivalents
+            - Do not include example sentences in your rules — state the instruction only
 
             OUTPUT FORMAT:
             Respond Strictly in the following format you are PROHIBITED from deviating from this format. YOU MUST NOT output any self-check or reasoning steps, only the final instructions and customisations:
@@ -418,11 +445,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     {"role": "system", "content": prompt_chaining_instructions},
                     {"role": "user", "content": user_data_input}
                 ],
-                options={
-                    "temperature": 0.2,
-                    "num_predict": 500, 
-                    "top_p": 0.9   
-                }
+               options={
+                    "temperature": 0.1,
+                    "num_predict": 300,  
+                    "top_p": 0.85,
+                    "repeat_penalty": 1.3,  
+                    "top_k": 20,            
+                    "num_ctx": 4096,
+}
             )
 
             # Append user data to the history so the LLM has base context in future calls
@@ -454,31 +484,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     chat_history[data.session_id].append(data.prompt)
 
     # Baseline communication rules if the user did not personalise 
-    baseline_communication = '''You are a warm, supportive assistant. Read the emotional tone of each 
-    message before responding.
+    baseline_communication = '''
+            TONE: Warm and Clear. Write as if exlaining to sensible young adult.
+            SENTENCES: Short sentences only. One idea per sentence, maximum 12 words per. Start a new paragraph for each new idea.
+            KNOWLEDGE: Assume the user has basic diabetes knowledge. Explain everything else from scratch
+            EMPATHY: Acknowledge result before explaining it. Weave reassurance in naturally
+            READING LEVEL: Every sentence must be understandable to a 12 year old without re-reading.
 
-    If the message sounds anxious, uncertain, or distressed, you must reassure the user and
-    explain their results in a way to not further overwhelm them
-
-    If the message is calm, factual, or practical, respond in kind.
-
-    Empathy should surface naturally throughout a response when appropriate, 
-    not as an opening ritual.
-
-    Never start with "I want to acknowledge" or any similar meta-phrase. 
-    Never label or announce what you are doing emotionally.
-
-    Never manufacture warmth that the moment does not call for.
-
-    Acknowledge the user's feeling, not the input.
-    
-    Make sure the information provided would be suitable for a person with a reading age of 12'''
-
-    communication_injection = ''''''
-    if persona_customisation:
-        communication_injection = persona_customisation
-    else:
-        communication_injection = baseline_communication
+''' 
 
 
     
@@ -656,10 +669,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         results, screening letters, and what results mean. For ANY 
         other topic, say: "I'm only able to help with diabetic eye 
         screening questions."
-        '''
-
-        communication_injection = persona_customisation if persona_customisation else baseline_communication
-        
+        '''        
 
         if reporting_result:
             definitions_block = "\n\n".join(result_store)
@@ -667,38 +677,16 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 if len(result_store) > 0:
                     result_injection = f'''
                     VERIFIED RESULTS:
-                    The following result(s) have been identified from the user's input.
-
-                    CLINICAL REFERENCE — FOR YOUR USE ONLY:
-                    Use the following to inform your explanation. Do NOT reproduce 
-                    it verbatim — translate it into language appropriate for this 
-                    user's communication rules. Address all results present.
+                    Use the following to inform your explination. Do not reproduce it verbatim, translate it 
+                    into language appropriate for this user. Adress all results present. R indicates Retinopathy
+                    M indicates Maculopathy
 
                     {definitions_block}
 
-                    CRITICAL: You may ONLY explain the results listed above. Do not 
-                    reference, imply, or explain any result not covered here. If the 
-                    user asks about something not covered above, direct them to their 
-                    clinical team.
-
-                    Response Style: Always be concise. Limit responses to 2 paragraphs maximum.
-                    Neutrality: Do not praise the patient or assume they are being "proactive.
+                    Only explain the results listed above never assume clincal detail. If the user asks about anything not covered here,
+                    direct them to their clinical team. Limit responses to 2 paragraphs maximum.
                     '''
 
-                elif len(result_store) > 0:
-                    result_injection = f'''
-                    CONTEXT:
-                    The user has already shared their results earlier in this 
-                    conversation. Use only the following to respond to their 
-                    message. Do not introduce any new clinical detail.
-
-                    {definitions_block}
-
-                    If their message cannot be addressed from the above, say:
-                    "For more detail on this I would recommend speaking with 
-                    your clinical team."
-
-                    '''
                 else:
                     # User signalled reporting but nothing was extracted
                     result_injection = '''
@@ -714,7 +702,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 result_injection = f'''
                 CONTEXT:
                 The user is asking a question about their results. Use only 
-                the following information to respond. Do not introduce any 
+                the following information to respond. Do not introduce or assume any 
                 new clinical detail not present here.
 
                 {definitions_block}
@@ -733,31 +721,31 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 before proceeding. Do not explain, assume, or imply any results.
                 '''
 
+        communication_injection = persona_customisation if persona_customisation else baseline_communication
+
+
         distress_indicators = [
         "worried", "scared", "frightened", "anxious", "nervous",
         "upset", "concerned", "afraid", "terrified", "panic"
         ]
+
         user_distressed = any(word in prompt.lower() for word in distress_indicators)
 
         if user_distressed:
             empathy_injection = '''
-            EMPATHY:
-            The user has expressed worry or distress. Open with brief, 
-            natural reassurance before explaining anything. Do not skip 
-            this because the result is positive. Reassurance should live 
-            in the framing throughout, not saved for one sentence.
+            EMPATHY: The user has expressed worry or distress. Open with brief, 
+            natural reassurance before explaining anything. Even if the result is positive.
+            Weave reassurance into framing throughout
             '''
         else:
             empathy_injection = '''
-            EMPATHY:
-            The user has not expressed any worry or distress. Do NOT 
-            open with reassurance or imply they are concerned. Respond 
-            warmly and directly. Do not project emotions onto the user 
-            that they have not expressed.'''
+            EMPATHY: The user has not expressed distress. Respond warmly and directly.
+            Do not open with reassurance or project any emotions they have not expressed'''
         
         
         next_step_indicators = [
         "what can i do",
+        "what else can i do",
         "what should i do",
         "how can i",
         "how do i",
@@ -779,7 +767,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
         if user_wants_next_step and len(result_store) > 0:
             next_step_injection = '''
-            The user has asked what they can do in the future to help manage their condition
+            NEXT STEPS: The user has asked what they can do, use the following:
 
             ways to help improve the management of diabetes to limit the risk of diabetic retinopathy are as follows,
             
@@ -794,47 +782,26 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
         rules_injection='''
         RULES:
-        
-        If the patient explicitly signals worry or distress, open with brief natural 
-        reassurance before explaining. Do not skip this because the answer is positive.
-
-        It is essential to provide empathy towards the user if they show signs of worry or distress, 
-        DO NOT skip this stage
-
-        Never end abruptly with a clinical fact. Close with something forward-looking 
-        or human.
-
-        Reassurance should live in the framing throughout, not saved for one 
-        "good news" sentence.
-
-        ALWAYS refer to yourself as "I" you are FORBIDDEN from saying "we" or "our". You are a solo AI 
-        assistant, not part of a team or service.
-
-        Never use wording that implies you are part of the clinical team. 
-        Use "the screening programme" and "the results show" instead.
-
-        You CANNOT book appointments so do not imply that you can
-
-        If the user provides a result with an R it stands for Retinopathy, M for Maculopathy
-
-        DO NOT down play a serious result
-
-        "NEVER use the following phrase or variations of it: 'We've included information on how to book an appointment in your letter, and our team will be happy to support you through the process.'"
+        - Refer to yourself as "I" only, never "we" or "our"
+        - Never imply you are part of the clinical team. Use "the screening programme" and "the results show"
+        - Never imply you can book appointments
+        - Do not use posessive clinical interpretation. Only use general or conditional language
+        - Do not downplay a serious result
+        - Do not end abruptly on a clinical fact - close with something forward-looking or human
+        - Never make promises on behalf of the screnning programme
+        - Never state, imply, or estimate recall intervals or appointment timelines unless 
+          they are explicitly present in the verified results block. If a user asks about 
+          timing and it is not in the results block
+    '"
         '''
 
         prompt = f'''
         {role_injection}
-
         {topic_injection}
-
         {result_injection}
-
         {communication_injection}
-
         {empathy_injection}
-
         {next_step_injection}
-
         {rules_injection}
         '''
 
@@ -857,8 +824,11 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         options={
         "temperature": 0.2,
         "num_predict": 400, 
-        "top_p": 0.9   
-    }
+        "top_p": 0.9,
+        "repeat_penalty": 1.2,  
+        "top_k": 40,          
+        "num_ctx": 4096, 
+        }
     )
 
     REFUSAL_TRIGGER = "I'm only able to help with diabetic eye screening questions."
