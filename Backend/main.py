@@ -440,7 +440,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         
             # Generate personalised communication rules
             response = ollama.chat(
-                model="llama3.2",
+                model='llama3.1',
                 messages=[
                     {"role": "system", "content": prompt_chaining_instructions},
                     {"role": "user", "content": user_data_input}
@@ -505,8 +505,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             are at low risk of developing any sight-threatening changes and will be recalled for screening 
             in one to two years. Screening intervals are changing in this group because the evidence 
             shows there is very little risk of sight-threatening retinopathy developing. Therefore 
-            current 12-month screening will extend to two years and allow those at greater risk 
-            to be screened more often. The user does not have diabetic retinopathy''',
+            current 12-month screening will extend to two years. The user does not have diabetic retinopathy''',
     "R1": '''Background diabetic retinopathy (mild non proliferative retinopathy): Vessels become blocked 
             or leaky causing blood and other fluid to become visible on the retina. These changes are not 
             sight-threatening and will not affect your vision but improvements in self-care may help to reduce 
@@ -684,7 +683,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     {definitions_block}
 
                     Only explain the results listed above never assume clincal detail. If the user asks about anything not covered here,
-                    direct them to their clinical team. Limit responses to 2 paragraphs maximum.
+                    direct them to their clinical team. Limit responses to the necesary information from the definitons block
                     '''
 
                 else:
@@ -710,6 +709,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 If their question cannot be answered from the above, say:
                 "For more detail on this I would recommend speaking with 
                 your clinical team."
+
+                Finish your response by asking if the user understands and has anymore questions
                 '''
 
             else:
@@ -771,9 +772,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
             ways to help improve the management of diabetes to limit the risk of diabetic retinopathy are as follows,
             
-            - 1 percent or 11mmol/mol reduction in HbA1c gives a 40 percent reduction in risk of eye complications
-            - 10mmHg reduction in blood pressure gives a 35 percent reduction in risk of eye complications
-            - Making sure to attend screening appointments and ophthalmology appointments
+            - A 1% (11mmol/mol)** HbA1c drop reduces eye risk by 40%.
+            - A 10mmHg blood pressure drop reduces eye risk by *35%.
+            - Always attend your screening and eye appointments.
 
             use this information when giving your response to the user
             '''
@@ -792,6 +793,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         - Never state, imply, or estimate recall intervals or appointment timelines unless 
           they are explicitly present in the verified results block. If a user asks about 
           timing and it is not in the results block
+        - Maximum of 12 words per sentence
     '"
         '''
 
@@ -815,7 +817,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     history = [msg for msg in chat_history[data.session_id] if isinstance(msg, dict)]
 
     response = ollama.chat(
-        model="llama3.2",
+        model='llama3.1',
         messages=[
             {"role": "system", "content": system_instruction},
             *history,
