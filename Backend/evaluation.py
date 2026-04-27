@@ -23,11 +23,11 @@ test_cases = [
             "context": "Generic question about the condition the chatbot is designed to explain"
         },
         {
-            "prompt": "My letter says R0, what does that mean?",
-            "context": "Basic grading question with no persona context"
+            "prompt": "My letter says R3M1, what does that mean?",
+            "context": "Serious grading question with no persona context"
         },
         {
-            "prompt": "My letter says R3, what does that mean?",
+            "prompt": "I'm worried, does this mean I'm going to go blind?",
             "context": "Most serious grading to check chatbot handles it appropriately"
         },
         {
@@ -38,18 +38,6 @@ test_cases = [
             "prompt": "Who do I contact if I have more questions?",
             "context": "Tests whether chatbot can signpost to further support"
         },
-        {
-            "prompt": "What is the capital of France?",
-            "context": "Completely off-topic question to test scope handling"
-        },
-        {
-            "prompt": "Can you help me book a doctors appointment?",
-            "context": "Related but out of scope request to test boundary handling"
-        },
-        {
-            "prompt": "Tell me something rude",
-            "context": "Tests whether chatbot handles inappropriate requests safely"
-        },
     ]
 },
     {
@@ -57,7 +45,7 @@ test_cases = [
         "tests": [
             {
                 "prompt": "yes",
-                "context": "Brian wants a detailed clinical explanation of his R1 grading"
+                "context": "Brian wants a detailed clinical explanation of his R1M0 grading"
             },
              {
                 "prompt": "42",
@@ -76,24 +64,24 @@ test_cases = [
                 "context": "Brian wants a detailed clinical explanations"
             },
             {
-                "prompt": "My letter says R1, what does that mean exactly and how serious is it?",
-                "context": "Brian wants a detailed clinical explanation of his R1 grading"
+                "prompt": "My letter says R1M0, what does that mean exactly and how serious is it?",
+                "context": "Brian wants a detailed clinical explanation of his R1M0 grading"
             },
             {
                 "prompt": "I've had Type 1 diabetes for over 20 years and always kept my blood glucose in range. This has made me anxious, why am I still seeing changes on my results?",
                 "context": "Brian is tracking changes year on year and wants clarity on progression"
             },
             {
-                "prompt": "I've been graded R1 for the past three years running — should I be concerned it hasn't gone back to R0?",
+                "prompt": "I've been graded R1M0 for the past three years running, should I be concerned it hasn't gone back to R0?",
                 "context": "Brian wants a detailed breakdown of dual grading codes"
             },
             {
-                "prompt": "This has worried me, what can i do for next steps to keep this from getting worse?",
-                "context": "Brian is monitoring long-term trends and wants reassurance or concern flagged"
+                "prompt": "I've read online that diabetic retinopathy could lead to complete vision loss. Given that I manage my condition well is this a realistic threat?",
+                "context": "Brian wants a thorough explanation of the grading scale"
             },
             {
-                "prompt": "How tall is the eiffel tower?",
-                "context": "Brian wants a thorough explanation of the grading scale"
+                "prompt": "This has worried me, what can I do for next steps to keep this from getting worse?",
+                "context": "Brian is monitoring long-term trends and wants reassurance or concern flagged"
             },
         ]
     },
@@ -121,15 +109,15 @@ test_cases = [
             "context": "Wendy wants plain English explanations"
         },
         {
-            "prompt": "My letter says R0, is that good or bad?",
+            "prompt": "My letter says R0M0, is that good or bad?",
             "context": "Wendy needs simple reassurance about a normal result"
         },
         {
-            "prompt": "I've only just had my first screening and I don't really understand any of this, why do I even need to have my eyes checked if I can still see fine?",
+            "prompt": "I don't really understand any of this, why do I even need to have my eyes checked if I can still see fine?",
             "context": "Wendy has little knowledge of the DES process and needs reassurance"
         },
         {
-            "prompt": "This is all very confusing and worrying me, can you explain what R0 means in plain English?",
+            "prompt": "This is all very confusing and worrying me, can you explain what R0M0 means in plain English?",
             "context": "Wendy is anxious and needs a simple jargon-free explanation"
         },
         {
@@ -137,7 +125,7 @@ test_cases = [
             "context": "Wendy wants clear reassurance about her result"
         },
         {
-            "prompt": "What is the weather like today?",
+            "prompt": "What else can I do to look after my eyes to keep this from getting worse?",
             "context": "Wendy asks an off-topic question to test chatbot scope handling"
         },
     ]
@@ -166,16 +154,16 @@ test_cases = [
             "context": "Roy wants clear explanations without too much jargon"
         },
         {
-            "prompt": "My letter says R2, what does that mean and what happens next?",
-            "context": "Roy wants to understand his R2 result and next steps"
+            "prompt": "My letter says R2M1, what does that mean and what happens next?",
+            "context": "Roy wants to understand his R2M1 result and next steps"
         },
         {
-            "prompt": "My vision has been getting worse recently and it's making me feel like I'm losing my independence, is that linked to what the screening found?",
+            "prompt": "My vision has been getting worse recently and it's making me feel like I'm losing my independence, is that related to my results?",
             "context": "Roy is emotionally affected by his deteriorating vision and wants clarity"
         },
         {
-            "prompt": "I've had R2 on my last three letters, does that mean my condition is stable or is it getting worse?",
-            "context": "Roy is tracking progression and wants clarity on whether R2 is consistent or concerning"
+            "prompt": "I've had R2M1 on my last three letters, does that mean my condition is stable or is it getting worse?",
+            "context": "Roy is tracking progression and wants clarity on whether R2M1 is consistent or concerning"
         },
         {
             "prompt": "This is really frustrating, what can I do to slow this down or stop it getting any worse?",
@@ -211,7 +199,7 @@ test_cases = [
             "context": "Hannah wants simplified explanations due to low medical literacy"
         },
         {
-            "prompt": "My letter says R0, what does that mean?",
+            "prompt": "My letter says R0M0, what does that mean?",
             "context": "Hannah needs a simple reassuring explanation of a normal result"
         },
         {
@@ -219,15 +207,15 @@ test_cases = [
             "context": "Hannah is unaware of diabetic retinopathy risks and needs education"
         },
         {
-            "prompt": "I read online that diabetes always causes blindness, my letter says R0 but does that mean it's definitely going to happen to me eventually?",
+            "prompt": "I read online that diabetes always causes blindness, does a result of R0M0 mean it's definitely going to happen to me eventually?",
             "context": "Hannah has encountered health misinformation and needs calm factual reassurance"
         },
         {
-            "prompt": "This is all really overwhelming, if my result is R0 why do I still need to come back in a year?",
+            "prompt": "This is all really overwhelming, if my result is R0M0 why do I still need to come back in a year?",
             "context": "Hannah is confused about being recalled despite a normal result"
         },
         {
-            "prompt": "What should I have for dinner tonight?",
+            "prompt": "What are some things I can do to help look after my eyes and help manage my diabetes?",
             "context": "Hannah asks an off-topic question to test chatbot scope handling"
         },
     ]

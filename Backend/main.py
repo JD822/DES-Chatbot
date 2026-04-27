@@ -331,7 +331,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             "intermediate": '''
                 TONE: Collborative, treat them as an active partner not a recipient
                 SENTENCES: Compound sentences linking cause and effect
-                TERMINOLOGY: Clinical term first, brief definition after EXAMPLE: "Maculopathy - changes in the central retina". Skip basic deinitions 
+                TERMINOLOGY: Clinical term first, brief definition after EXAMPLE: "Maculopathy, changes in the central retina". Skip basic deinitions 
                 KNOWLEDGE: Skip diabetes basics. Assume understanding, not grading detail
                 EMPATHY: Acknowledge for management effort once only
             ''',
@@ -339,7 +339,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             "expert": '''
                 TONE: Peer-to-peer. Direct and efficient
                 SENTENCES: Information-rich. Lead with finding, then implication
-                TERMINOLOGY: Standard clinical terms only - HbA1c, VEGF, OCT, No plain subsititutes
+                TERMINOLOGY: Standard clinical terms only, HbA1c, VEGF, OCT, No plain subsititutes
                 KNOWLEDGE: Assume full mastery. Only explain context if asked
                 EMPATHY: Brief acknowledgement 
             '''
@@ -358,10 +358,10 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             TASK:
             Using the baseline template above as a structural guide only, generate 
             4-5 formatting and tone instructions that are specific to this individual 
-            user. Each rule must reflect at least one detail from their inputs — such 
+            user. Each rule must reflect at least one detail from their inputs, such 
             as their age, stated literacy, specific confusion, or experience level. 
 
-            HARD CONSTRAINTS, these apply to every rule you generate:
+            HARD CONSTRAINTS apply these to every rule you generate:
             - Never use "we" or "our", use "I" only
             - Never reference booking appointments
             - Never imply you are part of the clinical team
@@ -396,12 +396,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 }
             )
 
-            # Append user data to the history so the LLM has base context in future calls
-            chat_history[data.session_id].append({
-            "role": "user", 
-            "content": user_data_input
-            })
-
             # Extract adaptive rules response
             persona_customisation = response["message"]["content"]
 
@@ -427,7 +421,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     # Baseline communication rules if the user did not personalise 
     baseline_communication = '''
             TONE: Warm and Clear. Write as if exlaining to sensible young adult.
-            SENTENCES: Short sentences only. One idea per sentence, maximum 12 words per. Start a new paragraph for each new idea.
+            SENTENCES: Short sentences only. One idea per sentence, maximum 12 words per sentence. Start a new paragraph for each new idea.
             KNOWLEDGE: Assume the user has basic diabetes knowledge. Explain everything else from scratch
             EMPATHY: Acknowledge result before explaining it. Weave reassurance in naturally
             READING LEVEL: Every sentence must be understandable to a 12 year old without re-reading.
@@ -493,22 +487,22 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             but a referral has been made so a specialist can assess the eyes 
             in more detail.''',
     "inconclusive_photographs": '''
-        The photographs taken during screening were not clear enough to 
-        assess the back of the eye. This is not a result about the 
-        patient's eye health — it means the screening could not be 
-        completed and will need to be repeated.''',
+            The photographs taken during screening were not clear enough to 
+            assess the back of the eye. This is not a result about the 
+            patient's eye health, it means the screening could not be 
+            completed and will need to be repeated.''',
     "cataract_referral": '''
-        A cataract prevented clear photographs of the back of the eye 
-        during screening. Because the retina could not be assessed, a 
-        referral to a hospital eye specialist has been made to examine 
-        the eye more closely. The referral is due to the incomplete 
-        screening, not necessarily because a problem has been found.
+            A cataract prevented clear photographs of the back of the eye 
+            during screening. Because the retina could not be assessed, a 
+            referral to a hospital eye specialist has been made to examine 
+            the eye more closely. The referral is due to the incomplete 
+            screening, not necessarily because a problem has been found.
     ''',
     "existing_condition": '''
-        Due to an existing eye condition, standard diabetic eye screening 
-        may not be appropriate. The patient may be monitored through 
-        another pathway such as a hospital eye service instead of the 
-        routine screening programme.
+            Due to an existing eye condition, standard diabetic eye screening 
+            may not be appropriate. The patient may be monitored through 
+            another pathway such as a hospital eye service instead of the 
+            routine screening programme.
     '''
     }
 
@@ -565,7 +559,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         
         # Regex to find results in prompt if reporting a result 
 
-        matches = re.findall(r"\b[RM][0-3]\b", p, re.IGNORECASE)
+        matches = matches = re.findall(r"(?i)[RM][0-3]", p)
         for match in matches:
             code = match.upper()
             if code not in found_results:
@@ -597,7 +591,6 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             if len(code[1]) > 0:
                 for i in range(len(code[1])):
                     content = results[code[1][i]]
-                    # Only add if it's not already in the store
                     if content not in result_store:
                         result_store.append(content)
     
@@ -635,10 +628,11 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
                     - Always begin by stating the result code and its meaning in the first sentence (e.g. “R1 means background diabetic retinopathy”).
                     - Always include: severity (mild/early stage), “not sight-threatening”, and “will not affect your vision” when applicable.
+                    - Always iclude recall interval if mentioned in the context
                     - Do not speculate about causes or contributing factors unless explicitly stated in the context.
                     - Explain in line with the users communication rules below
                     - When discussing management, use neutral phrasing such as “taking good care of your diabetes”. Do not use language that implies poor control (e.g. “better self-care”).
-                    - End with a neutral, supportive question (e.g. “Does that make sense, or is there anything you'd like me to explain further?”).
+                    - End with a neutral, supportive question (e.g. “Is there anything else you'd like to know about your results?”).
                    
                     '''
 
@@ -672,7 +666,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 - When interpreting repeated results, describe them as “stable” rather than assuming no progression unless explicitly stated.
                 - If the user asks why something has happened and the reason is not explicitly stated above, 
                   acknowledge the uncertainty and explain only what is known from the provided information before offering the fallback.
-                - When discussing results over time (e.g. stable, unchanged, or progression), always restate the severity and vision impact 
+                - When discussing results over time (e.g. stable or progression), always restate the severity and vision impact 
                   using the provided information (e.g. mild, not sight-threatening, no effect on vision).
                 - When discussing management, use neutral phrasing such as “taking good care of your diabetes”. Do not use language that implies poor control (e.g. “better self-care”).
                 - End with a neutral, supportive question (e.g. “Does that make sense, or is there anything you'd like me to explain further?”).
@@ -747,13 +741,14 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         user_wants_next_step = any(phrase in prompt.lower() for phrase in next_step_indicators)
 
         if user_wants_next_step and len(result_store) > 0:
-            next_step_injection = '''
-            NEXT STEPS: The user has asked what they can do, use the following:
+            next_step_injection = f'''
+            NEXT STEPS: The user has asked what they can do to help manage their condition, use the following:
 
             ways to help improve the management of diabetes to limit the risk of diabetic retinopathy are as follows,
             
-            - A 1% (11mmol/mol) HbA1c drop reduces eye risk by 40%.
-            - A 10mmHg blood pressure drop reduces eye risk by 35%.
+            - A 1% or 11mmol/mol  HbA1c drop reduces eye risk by around 40%.
+            - A 10mmHg blood pressure drop reduces eye risk by around 35%.
+            - Small consistent improvements matter over time
             - Always attend your screening and eye appointments.
 
             use all of this information when giving your response to the user
