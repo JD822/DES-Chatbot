@@ -3,3 +3,5 @@ node_modules/
 __pycache__/
 *.pyc
 Backend/.env
+Backend/test_results
+.DS_Store

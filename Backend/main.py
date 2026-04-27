@@ -71,8 +71,9 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
     if data.session_id not in chat_history:
         chat_history[data.session_id] = []
 
-    # If Onboarding make sure all variables are at default (Data Purge)
+    # If onboarding make sure all variables are at default (data purge)
     if data.onboarding:
+        print("Starting Onboarding")
         awaiting_personalisation_response = True
         personalise_response = False
         user_age = "Age not provided"
@@ -81,6 +82,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         literacy_level = "Literacy level not provided"
         chat_history[data.session_id] = []
         result_store = []
+        API_KEY_CREDITS[os.getenv("API_KEY")] = 10
     
 
     # If the user has not yet chose to personalise responses
@@ -316,69 +318,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                     base_level = 'novice'
 
             # Reasoning examples based on base level
-            reasoning_examples = {
-            "novice": '''RULES:
-            - TONE: Warm and encouraging. Write as if speaking to someone new to this. Never clinical, never rushed.
-            - SENTENCES: Maximum 12 words per sentence. One idea per sentence. 
-            Start a new paragraph for each new concept.
-            - TERMINOLOGY: Always use the plain term first. Add the clinical 
-            term in brackets immediately after. Never use a clinical term 
-            alone. Example: "the back of your eye (retina)" not "the retina".
-            - ANALOGIES: Use one simple everyday analogy if applicable.
-            - KNOWLEDGE: Explain everything from scratch. Never reference
-            prior knowledge, or assume they remember anything from before.
-            - EMPATHY: Weave reassurance into every sentence naturally. 
-            Never save it for the end. Never skip it because the result 
-            is good news.
-            - READING LEVEL: Every sentence must be understandable to a 
-            12 year old without re-reading. If a sentence requires 
-            prior knowledge to parse, rewrite it.
-            ''',
 
-            "intermediate": '''RULES:
-            - TONE: Collaborative and empowering. Treat them as an active 
-            partner in managing their condition, not a passive recipient 
-            of information. Use "your result shows" not "the result shows".
-            - SENTENCES: Use compound sentences that connect cause and effect. 
-            Example: "Because the vessels are leaking, fluid builds up 
-            which can affect your vision over time." Never use short 
-            choppy sentences — these feel patronising at this level.
-            - TERMINOLOGY: Lead with the clinical term, follow immediately 
-            with a brief functional definition. Example: "maculopathy — 
-            where changes occur in the central area responsible for 
-            reading vision". Never define basic terms like retina or diabetes.
-            - ANALOGIES: Use mechanical or functional analogies only 
-            - KNOWLEDGE: Skip all introductory context about diabetes. 
-            Assume they understand the basics but may not recall 
-            specific grading details.
-            - EMPATHY: Acknowledge the effort of long term management 
-            directly. One acknowledgement only — do not repeat.
-            ''',
-
-            "expert": '''RULES:
-            - TONE: Peer to peer. Direct and efficient. Treat them as a 
-            clinical equal. Never explain what they already know. 
-            Never soften findings unnecessarily.
-            - SENTENCES: Dense, information rich sentences are appropriate. 
-            Prioritise precision over readability. Lead with the finding, 
-            follow with the implication.
-            - TERMINOLOGY: Use standard clinical terminology exclusively — 
-            HbA1c, euglycaemia, VEGF, vitreous haemorrhage, OCT imaging. 
-            Never substitute a plain language term for a clinical one. 
-            Never define standard terms.
-            - ANALOGIES: Prohibited. State the physiological fact directly. 
-            - KNOWLEDGE: Assume complete mastery. Skip all preparation 
-            context, basic definitions, and standard next step 
-            explanations they will already know. Focus only on 
-            what is specific to their result.
-            - EMPATHY: Express through precision and respect for autonomy 
-            only. One brief acknowledgement maximum — never repeated, 
-            never emotional. Example: "This result warrants prompt 
-            review" not "I know this might be worrying for you".
-            '''
-            }
-
-            new_reasoning_examples  = {
+            reasoning_examples  = {
             "novice": '''
                 TONE: Warm and encouraging.
                 SENTENCES: Max 12 words. One idea per sentence. New paragraph per concept
@@ -404,7 +345,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             '''
             }
         
-            communication_example = new_reasoning_examples[base_level]
+            communication_example = reasoning_examples[base_level]
 
             # System instruction for the Adaptive rules creation
             prompt_chaining_instructions =f''' You are a Prompt Engineer. Your task is to generate a 'Persona Supplement' based on user data to bridge the gap between the user's context and their medical results.
@@ -421,11 +362,11 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
             as their age, stated literacy, specific confusion, or experience level. 
 
             HARD CONSTRAINTS, these apply to every rule you generate:
-            - Never use "we" or "our" — use "I" only
+            - Never use "we" or "our", use "I" only
             - Never reference booking appointments
             - Never imply you are part of the clinical team
-            - Use "the results show" and "the screening programme" — never possessive equivalents
-            - Do not include example sentences in your rules — state the instruction only
+            - Use "the results show" and "the screening programme", never possessive equivalents
+            - Do not include example sentences in your rules, state the instruction only
 
             OUTPUT FORMAT:
             Respond Strictly in the following format you are PROHIBITED from deviating from this format. YOU MUST NOT output any self-check or reasoning steps, only the final instructions and customisations:
@@ -649,11 +590,16 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         # Prefer coded results over descriptive phrases
         if len(code[0]) > 0:
             for i in range(len(code[0])):
-                result_store.append(results[code[0][i]])
+                content = results[code[0][i]]
+                if content not in result_store:
+                    result_store.append(content)
         else:
             if len(code[1]) > 0:
                 for i in range(len(code[1])):
-                    result_store.append(results[code[1][i]])
+                    content = results[code[1][i]]
+                    # Only add if it's not already in the store
+                    if content not in result_store:
+                        result_store.append(content)
     
 
     def prompt_builder(prompt, is_reporting_result):
@@ -671,19 +617,29 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         '''        
 
         if reporting_result:
-            definitions_block = "\n\n".join(result_store)
+            unique_results = list(set(result_store))
+            definitions_block = "\n\n".join(unique_results)
             if is_reporting_result:
                 if len(result_store) > 0:
                     result_injection = f'''
                     VERIFIED RESULTS:
-                    Use the following to inform your explination. Do not reproduce it verbatim, translate it 
+                    Use the following to inform your explanation. Do not reproduce it verbatim, translate it 
                     into language appropriate for this user. Adress all results present. R indicates Retinopathy
                     M indicates Maculopathy
 
                     {definitions_block}
 
+
                     Only explain the results listed above never assume clincal detail. If the user asks about anything not covered here,
-                    direct them to their clinical team. Limit responses to the necesary information from the definitons block
+                    direct them to their clinical team. Limit responses to the necesary information from the definitons block.
+
+                    - Always begin by stating the result code and its meaning in the first sentence (e.g. “R1 means background diabetic retinopathy”).
+                    - Always include: severity (mild/early stage), “not sight-threatening”, and “will not affect your vision” when applicable.
+                    - Do not speculate about causes or contributing factors unless explicitly stated in the context.
+                    - Explain in line with the users communication rules below
+                    - When discussing management, use neutral phrasing such as “taking good care of your diabetes”. Do not use language that implies poor control (e.g. “better self-care”).
+                    - End with a neutral, supportive question (e.g. “Does that make sense, or is there anything you'd like me to explain further?”).
+                   
                     '''
 
                 else:
@@ -697,7 +653,8 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         else:
             if len(result_store) > 0:
                 # User is asking a general question but has results in history
-                definitions_block = "\n\n".join(result_store)
+                unique_results = list(set(result_store))
+                definitions_block = "\n\n".join(unique_results)
                 result_injection = f'''
                 CONTEXT:
                 The user is asking a question about their results. Use only 
@@ -710,7 +667,15 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 "For more detail on this I would recommend speaking with 
                 your clinical team."
 
-                Finish your response by asking if the user understands and has anymore questions
+                - State the effect on vision for this diagnosis
+                - Do not speculate about causes or contributing factors unless explicitly stated in the context.
+                - When interpreting repeated results, describe them as “stable” rather than assuming no progression unless explicitly stated.
+                - If the user asks why something has happened and the reason is not explicitly stated above, 
+                  acknowledge the uncertainty and explain only what is known from the provided information before offering the fallback.
+                - When discussing results over time (e.g. stable, unchanged, or progression), always restate the severity and vision impact 
+                  using the provided information (e.g. mild, not sight-threatening, no effect on vision).
+                - When discussing management, use neutral phrasing such as “taking good care of your diabetes”. Do not use language that implies poor control (e.g. “better self-care”).
+                - End with a neutral, supportive question (e.g. “Does that make sense, or is there anything you'd like me to explain further?”).
                 '''
 
             else:
@@ -722,7 +687,22 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 before proceeding. Do not explain, assume, or imply any results.
                 '''
 
+        if persona_customisation:
+            user_data_injection = f'''
+
+            Below is data input by the user during their personalisation, if applicable in your answer refer to this data
+
+            User Inputs:
+            Age: {user_age}
+            Visual impairment: {vision_status} 
+            Years managing diabetes: {user_experience}
+            Literacy: {literacy_level}
+        '''
+        else:
+            user_data_injection =''''''
+
         communication_injection = persona_customisation if persona_customisation else baseline_communication
+
 
 
         distress_indicators = [
@@ -772,11 +752,11 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
             ways to help improve the management of diabetes to limit the risk of diabetic retinopathy are as follows,
             
-            - A 1% (11mmol/mol)** HbA1c drop reduces eye risk by 40%.
-            - A 10mmHg blood pressure drop reduces eye risk by *35%.
+            - A 1% (11mmol/mol) HbA1c drop reduces eye risk by 40%.
+            - A 10mmHg blood pressure drop reduces eye risk by 35%.
             - Always attend your screening and eye appointments.
 
-            use this information when giving your response to the user
+            use all of this information when giving your response to the user
             '''
         else:
             next_step_injection = ''''''
@@ -788,12 +768,23 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         - Never imply you can book appointments
         - Do not use posessive clinical interpretation. Only use general or conditional language
         - Do not downplay a serious result
-        - Do not end abruptly on a clinical fact - close with something forward-looking or human
+        - Do not end abruptly on a clinical fact close with something forward-looking or human
         - Never make promises on behalf of the screnning programme
         - Never state, imply, or estimate recall intervals or appointment timelines unless 
-          they are explicitly present in the verified results block. If a user asks about 
-          timing and it is not in the results block
+          they are explicitly present in the verified results block
         - Maximum of 12 words per sentence
+
+        If the user mentions any of the following symptoms or concerns:
+        - Sudden or gradual vision loss / "vision getting worse"
+        - New floaters, flashes of light, or black spots
+        - Blurred, distorted, or "patchy" vision
+        - Pain in the eye
+
+        YOU MUST:
+        1. Immediately advise them to contact their clinical team, GP, or an eye specialist (optometrist) urgently.
+        2. Prioritise this advice over any standard result explanation.
+        3. Even if their result is R0, do not tell them "there is nothing to worry about" if they have these symptoms.
+        4. Use the phrase: "Because you mentioned changes in your vision, it is very important that you speak with a medical professional as soon as possible."
     '"
         '''
 
@@ -801,6 +792,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
         {role_injection}
         {topic_injection}
         {result_injection}
+        {user_data_injection}
         {communication_injection}
         {empathy_injection}
         {next_step_injection}
