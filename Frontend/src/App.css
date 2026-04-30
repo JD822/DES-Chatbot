@@ -16,6 +16,10 @@ body,
   --user-bubble-text-color: #ffffff;
   --assistant-bubble-color: #f1f2f6;
   --assistant-bubble-text-color: #2d3436;
+
+  --primary-button-bg: #0984e3;
+  --primary-button-text: #ffffff;
+  --primary-button-hover-bg: #076ad1;
 }
 
 [data-theme="dark"] {
@@ -27,6 +31,10 @@ body,
   --user-bubble-text-color: #ffffff;
   --assistant-bubble-color: #3e5c76;
   --assistant-bubble-text-color: #f5f5f5;
+
+  --primary-button-bg: #3a86ff;
+  --primary-button-text: #ffffff;
+  --primary-button-hover-bg: #2a66cc;
 }
 
 [data-theme="colourblind friendly"] {
@@ -39,6 +47,10 @@ body,
   --user-bubble-text-color: #ffffff;
   --assistant-bubble-color: #f0e442;
   --assistant-bubble-text-color: #000000;
+
+  --primary-button-bg: #0072b2; /* Blue */
+  --primary-button-text: #ffffff;
+  --primary-button-hover-bg: #005a8c;
 }
 
 [data-theme="high contrast"] {
@@ -50,6 +62,10 @@ body,
   --user-bubble-text-color: #ffffff;
   --assistant-bubble-color: #e8e8e8;
   --assistant-bubble-text-color: #1a1a1a;
+
+  --primary-button-bg: #6200ee;
+  --primary-button-text: #ffffff;
+  --primary-button-hover-bg: #4500a5;
 }
 
 body {
@@ -135,11 +151,13 @@ body {
   border-radius: 5px;
   background-color: #f9f9f9;
   color: #000;
+  margin-bottom: 2px;
 }
 
-.chat-input:focus {
+.text-input:hover {
   border-color: #0984e3;
   color: #000000;
+  transition: 0.3s ease;
 }
 
 @keyframes popIn {
@@ -158,21 +176,54 @@ body {
 }
 
 .settings-button {
-  background-color: transparent;
-  border: 2px solid var(--text-color);
+  background-color: var(--chat-window-color);
+  border: 2px solid var(--chat-window-border-color);
   color: var(--text-color);
   padding: 5px 10px;
   border-radius: 5px;
   transition:
     background-color 0.3s ease,
-    color 0.3s ease;
+    border-color 0.3s ease,
+    color 0.3s ease,
+    transform 0.2s ease;
   margin-bottom: 3px;
 }
 
+.settings-button:hover {
+  background-color: var(--primary-button-bg);
+  border-color: var(--primary-button-bg);
+  color: var(--primary-button-text);
+  transform: translateY(-1px);
+}
+
+[data-theme="high contrast"] .settings-button:active {
+  background-color: #4500a5;
+  border-color: #4500a5;
+  color: #ffffff;
+}
+
+[data-theme="high contrast"] .settings-button:focus {
+  background-color: #4500a5;
+  border-color: #4500a5;
+  color: #ffffff;
+}
+
+[data-theme="high contrast"] .confirm-button:focus {
+  background-color: #4500a5;
+  border-color: #4500a5;
+  color: #ffffff;
+}
+
+[data-theme="high contrast"] .send-button:focus {
+  background-color: #4500a5;
+  border-color: #4500a5;
+  color: #ffffff;
+}
+
 .send-button {
-  background-color: var(--user-bubble-color);
+  background-color: var(--primary-button-bg);
   border: none;
-  color: var(--user-bubble-text-color);
+  color: var(--primary-button-text);
   padding: 10px 20px;
   border-radius: 5px;
 
@@ -214,6 +265,8 @@ body {
 }
 
 .send-button:hover:not(:disabled) {
+  background-color: var(--primary-button-hover-bg);
+  border-color: var(--primary-button-hover-bg);
   transform: translateY(-1px);
 }
 
@@ -223,13 +276,12 @@ body {
   border-radius: 10px;
   padding: 20px;
   text-align: center;
-  max-width: 600px;
   width: 100%;
   height: 100%;
 }
 
 .confirm-button {
-  background-color: var(--user-bubble-color);
+  background-color: var(--primary-button-bg);
   border: none;
   color: var(--user-bubble-text-color);
   padding: 8px 20px;
@@ -249,6 +301,8 @@ body {
 }
 
 .confirm-button:hover {
+  background-color: var(--primary-button-hover-bg);
+  border-color: var(--primary-button-hover-bg);
   transform: translateY(-1px);
 }
 
@@ -260,12 +314,28 @@ body {
 }
 
 .info-panel {
-  background-color: var(--assistant-bubble-color);
-  color: var(--assistant-bubble-text-color);
   border-radius: 10px;
   text-align: left;
-  font-size: var(--bubble-text-size);
-  transition: font-size 0.2s ease;
-  max-width: 100%;
   width: 100%;
+}
+
+.reset-button {
+  background-color: transparent;
+  border: 2px solid rgb(0, 0, 0);
+  color: rgb(0, 0, 0);
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+  margin-bottom: 3px;
+}
+
+.settings-dropdown {
+  margin-left: auto;
+}
+
+.disclaimer {
+  font-size: 10px;
+  padding: 2px;
 }

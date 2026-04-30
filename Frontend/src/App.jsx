@@ -130,14 +130,13 @@ function App() {
 
   const accessibilityStyles = {
     "--bubble-text-size": `${textSize}px`,
-    "--theme": `${theme}`,
   };
 
   return (
-    <div className="container" style={{ "--theme": theme }}>
+    <div className="container">
       <div className="header">
         <Dropdown
-          style={{ marginLeft: "auto" }}
+          className="settings-dropdown"
           show={showDropdown}
           onToggle={(isOpen, event) => {
             if (event?.source !== "select") {
@@ -233,7 +232,7 @@ function App() {
             </Dropdown.Item>
             <Dropdown.Item href="#/action-3">
               <button
-                className="btn btn-secondary reset-button"
+                className="btn btn-danger reset-button"
                 onClick={() => {
                   setMessages([
                     {
@@ -352,10 +351,7 @@ function App() {
         )}
         <div ref={messagesEndRef} />
       </div>
-      <small
-        className="disclaimer"
-        style={{ fontSize: "10px", padding: "2px" }}
-      >
+      <small className="disclaimer">
         This is an AI assistant therefore can make mistakes. Always refer to a
         healthcare professional for medical advice.
       </small>
@@ -372,7 +368,6 @@ function App() {
             : "Please confirm to start chatting"
         }
       />
-      <div style={{ padding: "2px" }}></div>
       <button
         className={`btn btn-primary send-button ${isLoading ? "loading" : ""}`}
         onClick={handleSend}
