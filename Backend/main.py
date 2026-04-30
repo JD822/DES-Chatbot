@@ -628,6 +628,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
 
                     - Always begin by stating the result code and its meaning in the first sentence (e.g. “R1 means background diabetic retinopathy”).
                     - Always include: severity (mild/early stage), “not sight-threatening”, and “will not affect your vision” when applicable.
+                    - Explain what was found, what was not found, and what the result means for risk now. Be reassuring when appropriate, but avoid absolute guarantees. Do not make frightening outcomes sound expected. Include next steps and routine follow-up advice.
                     - Always iclude recall interval if mentioned in the context
                     - Do not speculate about causes or contributing factors unless explicitly stated in the context.
                     - Explain in line with the users communication rules below
@@ -661,6 +662,7 @@ def generate(data: Prompt, x_api_key: str = Depends(verify_api_key)):
                 "For more detail on this I would recommend speaking with 
                 your clinical team."
 
+                - Explain what was found, what was not found, and what the result means for risk now. Be reassuring when appropriate, but avoid absolute guarantees. Do not make frightening outcomes sound expected. Include next steps and routine follow-up advice.
                 - State the effect on vision for this diagnosis
                 - Do not speculate about causes or contributing factors unless explicitly stated in the context.
                 - When interpreting repeated results, describe them as “stable” rather than assuming no progression unless explicitly stated.

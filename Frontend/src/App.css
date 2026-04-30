@@ -166,6 +166,7 @@ body {
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+  margin-bottom: 3px;
 }
 
 .send-button {
@@ -174,7 +175,97 @@ body {
   color: var(--user-bubble-text-color);
   padding: 10px 20px;
   border-radius: 5px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+  white-space: nowrap;
+
   transition:
     background-color 0.3s ease,
-    color 0.3s ease;
+    opacity 0.3s ease,
+    transform 0.2s ease;
+}
+
+.send-button::after {
+  content: "Sending...";
+  display: inline-block;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+
+  transition:
+    max-width 0.4s ease,
+    opacity 0.3s ease,
+    margin-left 0.3s ease;
+}
+
+.send-button.loading::after {
+  max-width: 180px;
+  opacity: 1;
+}
+
+.send-button:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.welcome-card {
+  background-color: var(--assistant-bubble-color);
+  color: var(--assistant-bubble-text-color);
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  max-width: 600px;
+  width: 100%;
+  height: 100%;
+}
+
+.confirm-button {
+  background-color: var(--user-bubble-color);
+  border: none;
+  color: var(--user-bubble-text-color);
+  padding: 8px 20px;
+  border-radius: 5px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+  white-space: nowrap;
+
+  transition:
+    background-color 0.3s ease,
+    opacity 0.3s ease,
+    transform 0.2s ease;
+}
+
+.confirm-button:hover {
+  transform: translateY(-1px);
+}
+
+.button-group {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.info-panel {
+  background-color: var(--assistant-bubble-color);
+  color: var(--assistant-bubble-text-color);
+  border-radius: 10px;
+  text-align: left;
+  font-size: var(--bubble-text-size);
+  transition: font-size 0.2s ease;
+  max-width: 100%;
+  width: 100%;
 }

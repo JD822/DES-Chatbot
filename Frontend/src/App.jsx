@@ -7,7 +7,6 @@ import RangeSlider from "react-bootstrap-range-slider";
 
 function App() {
   const [input, setInput] = useState("");
-  const [response, setResponse] = useState("");
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -19,6 +18,8 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [textSize, setTextSize] = useState(16);
   const [theme, setTheme] = useState("light");
+  const [isLoading, setIsLoading] = useState(false);
+  const [userConfirmation, setUserConfirmation] = useState(false);
   const [sessionId, setSessionId] = useState(() => {
     let id = sessionStorage.getItem("chat_session_id");
 
@@ -47,7 +48,8 @@ function App() {
   }, [theme]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
+    setIsLoading(true);
 
     const userMsg = { role: "user", content: input };
 
@@ -90,6 +92,35 @@ function App() {
       });
     } catch (error) {
       console.error("Failed to send message", error);
+      setMessages((prevHistory) => {
+        const newMessages = [...prevHistory];
+        newMessages.pop();
+
+        return newMessages;
+      });
+      await new Promise((r) => setTimeout(r, 200));
+      setMessages((prevHistory) => {
+        const newMessages = [...prevHistory];
+        newMessages.push({
+          role: "assistant",
+          content: "Sorry, something went wrong. Please try again.",
+        });
+        return newMessages;
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExternalLinkClick = (e, url) => {
+    e.preventDefault();
+
+    const newWindow = window.confirm(
+      "You are about to open an external link. Do you want to proceed?",
+    );
+
+    if (newWindow) {
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -105,7 +136,6 @@ function App() {
   return (
     <div className="container" style={{ "--theme": theme }}>
       <div className="header">
-        <h2>DES Results Letter Bot</h2>
         <Dropdown
           style={{ marginLeft: "auto" }}
           show={showDropdown}
@@ -140,94 +170,215 @@ function App() {
             <Dropdown.Item href="#/action-2">
               <div>
                 Themes
-                <div class="form-check">
+                <div className="form-check">
                   <input
-                    class="form-check-input"
+                    className="form-check-input"
                     type="radio"
                     name="themeRadios"
                     id="lightModeRadio"
                     value="option1"
+                    checked={theme === "light"}
                     onChange={() => handleThemeChange("light")}
                   />
-                  <label class="form-check-label" for="lightModeRadio">
+                  <label className="form-check-label" htmlFor="lightModeRadio">
                     Light mode
                   </label>
                 </div>
-                <div class="form-check">
+                <div className="form-check">
                   <input
-                    class="form-check-input"
+                    className="form-check-input"
                     type="radio"
                     name="themeRadios"
                     id="darkModeRadio"
                     value="option2"
+                    checked={theme === "dark"}
                     onChange={() => handleThemeChange("dark")}
                   />
-                  <label class="form-check-label" for="darkModeRadio">
+                  <label className="form-check-label" htmlFor="darkModeRadio">
                     Dark mode
                   </label>
                 </div>
-                <div class="form-check">
+                <div className="form-check">
                   <input
-                    class="form-check-input"
+                    className="form-check-input"
                     type="radio"
                     name="themeRadios"
                     id="deuteranopiaRadio"
                     value="option3"
+                    checked={theme === "colourblind friendly"}
                     onChange={() => handleThemeChange("colourblind friendly")}
                   />
-                  <label class="form-check-label" for="deuteranopiaRadio">
+                  <label
+                    className="form-check-label"
+                    htmlFor="deuteranopiaRadio"
+                  >
                     Colourblind Friendly
                   </label>
                 </div>
-                <div class="form-check">
+                <div className="form-check">
                   <input
-                    class="form-check-input"
+                    className="form-check-input"
                     type="radio"
                     name="themeRadios"
                     id="protanopiaRadio"
                     value="option4"
+                    checked={theme === "high contrast"}
                     onChange={() => handleThemeChange("high contrast")}
                   />
-                  <label class="form-check-label" for="protanopiaRadio">
+                  <label className="form-check-label" htmlFor="protanopiaRadio">
                     High Contrast
                   </label>
                 </div>
               </div>
             </Dropdown.Item>
-            <Dropdown.Item href="#/action-3">Something else</Dropdown.Item>
+            <Dropdown.Item href="#/action-3">
+              <button
+                className="btn btn-secondary reset-button"
+                onClick={() => {
+                  setMessages([
+                    {
+                      role: "assistant",
+                      content:
+                        "Hi there! I'm your DES Support Bot. How can I assist you today? If you want to get the best experience, just say 'Yes' to personalise my responses to you.",
+                    },
+                  ]);
+                  askOllama("Start_Onboarding", sessionId, true);
+                }}
+              >
+                Reset Conversation
+              </button>
+            </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown>
       </div>
-      <div className="chat-window">
-        {messages.map((msg, i) => (
+      <div className="chat-window" aria-live="polite">
+        {userConfirmation === false ? (
           <div
-            key={i}
-            className={`message-wrapper ${msg.role} chat-pop`}
-            style={accessibilityStyles}
+            className="welcome-card"
+            role="dialog"
+            aria-labelledby="confirm-title"
           >
-            <span className={`bubble ${msg.role}`}>{msg.content}</span>
+            <h4 id="confirm-title">
+              Welcome to the Diabetic Eye Screening Results Letter Bot!
+            </h4>
+
+            <p>
+              I can help answer questions about your Diabetic Eye Screening
+              results letter and guide you through common next steps.
+            </p>
+
+            <div className="info-panel">
+              <h5>How personalisation works</h5>
+              <ul>
+                <li>
+                  After confirming, you can choose to answer a few onboarding
+                  questions.
+                </li>
+                <li>Using this, I can provide more relevant information.</li>
+                <li>You can still use the bot without personalisation.</li>
+              </ul>
+            </div>
+            <div className="info-panel">
+              <h5>Further Help Links</h5>
+              <ul>
+                <li>
+                  <a
+                    href="https://www.nhs.uk/tests-and-treatments/diabetic-eye-screening/"
+                    onClick={(e) =>
+                      handleExternalLinkClick(
+                        e,
+                        "https://www.nhs.uk/tests-and-treatments/diabetic-eye-screening/",
+                      )
+                    }
+                  >
+                    NHS - Diabetic Eye Screening Information
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://www.diabetes.org.uk/about-diabetes/looking-after-diabetes/diabetic-eye-screening"
+                    onClick={(e) =>
+                      handleExternalLinkClick(
+                        e,
+                        "https://www.diabetes.org.uk/about-diabetes/looking-after-diabetes/diabetic-eye-screening",
+                      )
+                    }
+                  >
+                    Diabetes org - Diabetic Eye Screening Information
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://www.diabetes.org.uk/about-diabetes/looking-after-diabetes"
+                    onClick={(e) =>
+                      handleExternalLinkClick(
+                        e,
+                        "https://www.diabetes.org.uk/about-diabetes/looking-after-diabetes",
+                      )
+                    }
+                  >
+                    Diabetes org - Looking After Diabetes
+                  </a>
+                </li>
+              </ul>
+              <h5>Urgent Medical Advice</h5>
+              <ul>
+                <li>
+                  If you experience any sudden changes in vision, eye pain, or
+                  other concerning symptoms, seek immediate medical attention
+                  from a healthcare professional
+                </li>
+              </ul>
+            </div>
+            <div className="button-group">
+              <button
+                className="btn btn-primary confirm-button"
+                onClick={() => setUserConfirmation(true)}
+              >
+                Confirm and continue
+              </button>
+            </div>
           </div>
-        ))}
+        ) : (
+          messages.map((msg, i) => (
+            <div
+              key={i}
+              className={`message-wrapper ${msg.role} chat-pop`}
+              style={accessibilityStyles}
+            >
+              <span className={`bubble ${msg.role}`}>{msg.content}</span>
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
-      <p1 style={{ fontSize: "10px", padding: "2px" }}>
+      <small
+        className="disclaimer"
+        style={{ fontSize: "10px", padding: "2px" }}
+      >
         This is an AI assistant therefore can make mistakes. Always refer to a
         healthcare professional for medical advice.
-      </p1>
+      </small>
       <input
+        aria-label="Type your message"
         className="text-input"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        placeholder="Type here... "
+        disabled={isLoading || userConfirmation === false}
+        placeholder={
+          userConfirmation
+            ? "Type here... "
+            : "Please confirm to start chatting"
+        }
       />
       <div style={{ padding: "2px" }}></div>
       <button
-        className="btn btn-primary"
+        className={`btn btn-primary send-button ${isLoading ? "loading" : ""}`}
         onClick={handleSend}
-        class="send-button"
+        disabled={isLoading || userConfirmation === false}
       >
-        Send
+        {isLoading ? "" : "Send"}
       </button>
     </div>
   );
